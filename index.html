@@ -31,19 +31,31 @@
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
         import { getFirestore, collection, doc, addDoc, onSnapshot, query, where, serverTimestamp, updateDoc, arrayUnion, getDocs } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-        // --- FIREBASE CONFIGURATION ---
-        const firebaseConfig = typeof __firebase_config !== 'undefined' 
-            ? JSON.parse(__firebase_config) 
-            : {
-                apiKey: "", // PASTE YOUR API KEY HERE
-                authDomain: "",
-                projectId: "",
-                storageBucket: "",
-                messagingSenderId: "",
-                appId: ""
-            };
+        /**
+         * SECURITY NOTE:
+         * To protect your data, you MUST set "Security Rules" in your Firebase Console.
+         * Go to Firebase Console > Firestore > Rules and paste this:
+         * * service cloud.firestore {
+         * match /databases/{database}/documents {
+         * match /artifacts/splitsmart-889da/public/data/groups/{groupId} {
+         * allow read, write: if request.auth != null;
+         * }
+         * }
+         * }
+         */
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'splitsmart-production';
+        // --- YOUR FIREBASE CONFIG ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAg5PYPLSBIOlIwTypFkNf8BRGgnIS3FXY",
+            authDomain: "splitsmart-889da.firebaseapp.com",
+            projectId: "splitsmart-889da",
+            storageBucket: "splitsmart-889da.firebasestorage.app",
+            messagingSenderId: "265383787810",
+            appId: "1:265383787810:web:de28c8f28ce1fd9a9bf97b",
+            measurementId: "G-ZN3B2YLXVT"
+        };
+
+        const appId = "splitsmart-889da";
 
         // Initialize Firebase services safely
         let app, auth, db;
@@ -52,7 +64,7 @@
             auth = getAuth(app);
             db = getFirestore(app);
         } catch (e) {
-            console.error("Firebase Initialization Error", e);
+            console.error("Firebase Initialization Error.", e);
         }
 
         const { useState, useEffect, useMemo } = React;
@@ -168,9 +180,7 @@
                 } catch (error) {
                     console.error("Login Error", error);
                     if (error.code === 'auth/unauthorized-domain') {
-                        setAuthError("This domain is not authorized. Please add this URL to 'Authorized Domains' in your Firebase Console (Authentication > Settings).");
-                    } else if (error.code === 'auth/invalid-api-key') {
-                        setAuthError("Invalid Firebase API Key. Please check your configuration.");
+                        setAuthError("This domain is not authorized. Please add your GitHub URL to 'Authorized Domains' in your Firebase Console.");
                     } else {
                         setAuthError("Login failed: " + error.message);
                     }
@@ -246,7 +256,7 @@
                 setShowAddExpense(false);
             };
 
-            if (loading) return <div className="flex h-screen items-center justify-center font-black text-indigo-600 animate-pulse">SPLITSMART</div>;
+            if (loading) return <div className="flex h-screen items-center justify-center font-black text-indigo-600 animate-pulse uppercase tracking-widest">Splitsmart</div>;
 
             if (!user) return (
                 <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-slate-50">
@@ -351,7 +361,10 @@
 
                                 <div className="grid grid-cols-1 xl:grid-cols-12 gap-12">
                                     <div className="xl:col-span-8 space-y-6">
-                                        <h2 className="text-2xl font-black tracking-tight">Recent Activity</h2>
+                                        <h2 className="text-2xl font-black tracking-tight flex items-center gap-3">
+                                            <Icon name="receipt" className="text-indigo-600" />
+                                            Recent Activity
+                                        </h2>
                                         <div className="space-y-4">
                                             {activeGroup.expenses?.slice().reverse().map(exp => (
                                                 <div key={exp.id} className="bg-white p-6 rounded-3xl border border-slate-100 flex items-center gap-6 hover:shadow-lg transition-all">
@@ -371,7 +384,10 @@
                                         </div>
                                     </div>
                                     <div className="xl:col-span-4 space-y-6">
-                                        <h2 className="text-2xl font-black tracking-tight">Balances</h2>
+                                        <h2 className="text-2xl font-black tracking-tight flex items-center gap-3">
+                                            <Icon name="trending-up" className="text-indigo-600" />
+                                            Balances
+                                        </h2>
                                         <div className="bg-white rounded-[2.5rem] p-6 border border-slate-100 space-y-4">
                                             {stats.balances.map(b => (
                                                 <div key={b.uid} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
@@ -400,7 +416,7 @@
                                 <h2 className="text-3xl font-black mb-6">Invite Member</h2>
                                 <form onSubmit={handleInvite} className="space-y-6">
                                     <div>
-                                        <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Email Address</label>
+                                        <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block px-2">Email Address</label>
                                         <input 
                                             required type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} 
                                             className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold outline-none focus:border-indigo-500" 
@@ -422,22 +438,22 @@
                                 <form onSubmit={handleAddExpense} className="space-y-6">
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="col-span-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Description</label>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block px-2">Description</label>
                                             <input name="description" required className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold outline-none" placeholder="e.g. Weekly Groceries" />
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Amount ($)</label>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block px-2">Amount ($)</label>
                                             <input name="amount" type="number" step="0.01" required className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-black text-xl outline-none" placeholder="0.00" />
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Category</label>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block px-2">Category</label>
                                             <select name="category" className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold outline-none">
                                                 {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                             </select>
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Split Logic</label>
+                                        <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block px-2">Split Logic</label>
                                         <select 
                                             name="splitLogic" value={paymentType} onChange={e => setPaymentType(e.target.value)}
                                             className="w-full p-4 bg-indigo-50 border-2 border-indigo-100 text-indigo-900 rounded-2xl font-bold outline-none"
@@ -450,7 +466,7 @@
                                     </div>
                                     {paymentType !== 'paid_by_me_split_equally' && (
                                         <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Who is the other member?</label>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block px-2">Which house member?</label>
                                             <select name="targetMember" className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold outline-none">
                                                 {activeGroup.members?.filter(m => m.uid !== user.uid).map(m => (
                                                     <option key={m.uid} value={m.uid}>{m.name || 'Member'}</option>
