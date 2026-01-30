@@ -209,7 +209,6 @@
       const [showInviteModal, setShowInviteModal] = useState(false);
       const [showMembersModal, setShowMembersModal] = useState(false);
       const [showJoinCodeModal, setShowJoinCodeModal] = useState(false);
-      const [showCatModal, setShowCatModal] = useState(false);
 
       const [inviteLink, setInviteLink] = useState("");
       const [inviteCode, setInviteCode] = useState("");
@@ -246,15 +245,9 @@
         const unsub = onAuthStateChanged(auth, async (u) => {
           setUser(u || null);
           setLoading(false);
-          if (u) {
-            try {
-              await setDoc(doc(db, "users", u.uid), {
-                displayName: u.displayName || "User",
-                email: (u.email || "").toLowerCase(),
-                photoURL: u.photoURL || null,
-                updatedAt: serverTimestamp(),
-              }, { merge: true });
-            } catch (e) { }
+          if (!u) {
+            setActiveGroupId(null);
+            setGroups([]);
           }
         });
         return () => unsub();
@@ -268,38 +261,62 @@
           const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
           setGroups(list);
           if (!activeGroupId && list.length) setActiveGroupId(list[0].id);
-        }, (err) => setErrorMessage(err.message));
+        }, (err) => {
+          if(err.code !== 'permission-denied') setErrorMessage(err.message);
+        });
         return () => unsub();
-      }, [user?.uid, activeGroupId]);
+      }, [user?.uid]);
 
       // Active Category (Group) Listener
       useEffect(() => {
-        if (!activeGroupId) return;
+        if (!activeGroupId || !user) return;
         const unsub = onSnapshot(doc(db, "groups", activeGroupId), (snap) => {
-          if (snap.exists()) setActiveGroup({ id: snap.id, ...snap.data() });
-        }, (err) => setErrorMessage(err.message));
+          if (snap.exists()) {
+            const data = snap.data();
+            // Critical Permission Guard: Only set active group if user is actually a member
+            if (data.memberIds?.includes(user.uid)) {
+              setActiveGroup({ id: snap.id, ...data });
+            } else {
+              setActiveGroup(null);
+            }
+          } else {
+            setActiveGroup(null);
+          }
+        }, (err) => {
+           if(err.code !== 'permission-denied') setErrorMessage(err.message);
+        });
         return () => unsub();
-      }, [activeGroupId]);
+      }, [activeGroupId, user]);
 
-      // Members Listener
+      // Members Listener - Only fire if user is in memberIds
       useEffect(() => {
-        if (!user?.uid || !activeGroupId) return;
+        if (!activeGroupId || !user || !activeGroup?.memberIds?.includes(user.uid)) {
+          setMembers([]);
+          return;
+        }
         const q = query(collection(db, "groups", activeGroupId, "members"));
         const unsub = onSnapshot(q, (snap) => {
           setMembers(snap.docs.map(d => ({ uid: d.id, ...d.data() })));
-        }, (err) => setErrorMessage(err.message));
+        }, (err) => {
+          if(err.code !== 'permission-denied') setErrorMessage(err.message);
+        });
         return () => unsub();
-      }, [user?.uid, activeGroupId]);
+      }, [activeGroupId, user, activeGroup]);
 
-      // Expenses Listener
+      // Expenses Listener - Only fire if user is in memberIds
       useEffect(() => {
-        if (!user?.uid || !activeGroupId) return;
+        if (!activeGroupId || !user || !activeGroup?.memberIds?.includes(user.uid)) {
+          setExpenses([]);
+          return;
+        }
         const q = query(collection(db, "groups", activeGroupId, "expenses"), orderBy("createdAt", "desc"), limit(200));
         const unsub = onSnapshot(q, (snap) => {
           setExpenses(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        }, (err) => setErrorMessage(err.message));
+        }, (err) => {
+          if(err.code !== 'permission-denied') setErrorMessage(err.message);
+        });
         return () => unsub();
-      }, [user?.uid, activeGroupId]);
+      }, [activeGroupId, user, activeGroup]);
 
       // Deep Linking Invitations
       useEffect(() => {
@@ -337,7 +354,6 @@
             name: newGroupName.trim(),
             ownerId: user.uid,
             memberIds: [user.uid],
-            categories: [],
             createdAt: serverTimestamp()
           });
           await setDoc(doc(db, "groups", groupRef.id, "members", user.uid), {
@@ -369,7 +385,10 @@
         if (!confirm("Delete this entire category and all its expenses?")) return;
         try {
           await deleteDoc(doc(db, "groups", id));
-          if (activeGroupId === id) setActiveGroupId(null);
+          if (activeGroupId === id) {
+            setActiveGroupId(null);
+            setActiveGroup(null);
+          }
           notify("Deleted");
         } catch (e) {
           setErrorMessage(e.message);
@@ -414,11 +433,18 @@
         if (!user?.uid) throw new Error("Please sign in.");
         const groupRef = doc(db, "groups", groupId);
         const invRef = doc(db, "groups", groupId, "invites", inviteId);
+        
         const invSnap = await getDoc(invRef);
         if (!invSnap.exists()) throw new Error("Invite not found.");
         const inv = invSnap.data();
         if (inv.status !== "pending") throw new Error("Invite used.");
-        await updateDoc(groupRef, { memberIds: arrayUnion(user.uid), updatedAt: serverTimestamp() });
+
+        // Rule-compliant update: Only memberIds and updatedAt
+        await updateDoc(groupRef, { 
+            memberIds: arrayUnion(user.uid), 
+            updatedAt: serverTimestamp() 
+        });
+
         await setDoc(doc(db, "groups", groupId, "members", user.uid), {
           displayName: user.displayName || "User",
           email: user.email.toLowerCase(),
@@ -426,6 +452,7 @@
           joinedAt: serverTimestamp(),
           addedByUserId: inv.invitedByUserId || null
         }, { merge: true });
+
         await updateDoc(invRef, { status: "accepted", acceptedByUserId: user.uid });
         if (inv.code) {
           const joinRef = doc(db, "joinCodes", String(inv.code).toUpperCase());
@@ -440,6 +467,7 @@
         const raw = String(joinCodeInput || "").trim().toUpperCase();
         if (!raw || !user) return;
         try {
+          setErrorMessage(null);
           const joinRef = doc(db, "joinCodes", raw);
           const joinSnap = await getDoc(joinRef);
           if (!joinSnap.exists()) return setErrorMessage("Invalid code.");
