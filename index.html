@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>SplitSmart - Monthly Tracker</title>
+  <title>SplitSmart</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 
   <style>
@@ -16,7 +17,8 @@
     body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
     .modal-enter { animation: zoomIn 0.18s ease-out; }
     @keyframes zoomIn { from { opacity:0; transform:scale(0.98);} to {opacity:1; transform:scale(1);} }
-    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
   </style>
 </head>
@@ -26,9 +28,19 @@
 
   <script type="text/babel" data-type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-    import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-    import { getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, serverTimestamp, arrayUnion, arrayRemove, getDoc, limit } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+    import {
+      getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut
+    } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+    import {
+      getFirestore,
+      collection, doc, addDoc, setDoc, updateDoc, deleteDoc,
+      onSnapshot, query, where, orderBy, serverTimestamp,
+      arrayUnion, arrayRemove, getDoc, limit
+    } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
+    // =========================
+    // Firebase config
+    // =========================
     const firebaseConfig = {
       apiKey: "AIzaSyAg5PYPLSBIOlIwTypFkNf8BRGgnIS3FXY",
       authDomain: "splitsmart-889da.firebaseapp.com",
@@ -42,242 +54,377 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
+
     const { useEffect, useMemo, useState } = React;
 
     const BASE_URL = "https://01ananto.github.io/SplitSmart/";
-    const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const INVITE_EXPIRES_DAYS = 14;
+    const MONTH_LIST = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
+    // =========================
+    // Icons
+    // =========================
     const Icons = {
-      receipt: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="16" height="20" x="4" y="2" rx="2"></rect><line x1="8" x2="16" y1="6" y2="6"></line><line x1="8" x2="10" y1="14" y2="14"></line></svg>,
-      plus: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>,
+      receipt: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="16" height="20" x="4" y="2" rx="2"></rect><line x1="8" x2="16" y1="6" y2="6"></line><line x1="8" x2="16" y1="10" y2="10"></line><line x1="8" x2="12" y1="14" y2="14"></line></svg>,
+      userPlus: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" x2="19" y1="8" y2="14"></line><line x1="16" x2="22" y1="11" y2="11"></line></svg>,
       users: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-3-3.87"></path><path d="M7 21v-2a4 4 0 0 1 4-4h0a4 4 0 0 1 4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>,
+      pencil: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z"></path></svg>,
       trash: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18"></path><path d="M19 6l-1 14H6L5 6"></path></svg>,
+      link: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 1 0-7l1-1a5 5 0 0 1 7 7l-1 1"></path><path d="M14 11a5 5 0 0 1 0 7l-1 1a5 5 0 0 1-7-7l1-1"></path></svg>,
+      key: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 2l-2 2m-2 2l-2 2m2-2l2 2m-2-2l-6 6"></path><circle cx="7" cy="17" r="3"></circle></svg>,
+      qr: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3z"></path><path d="M14 14h3v3h-3zM17 17h4v4h-4z"></path></svg>,
     };
 
     const toCents = (val) => Math.round(Number(val || 0) * 100);
-    const toDollars = (cents) => (cents / 100).toFixed(2);
+    const toDollars = (cents) => (cents / 100);
+
+    const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+    function generateCode(len = 10) {
+      const buf = new Uint8Array(len);
+      crypto.getRandomValues(buf);
+      let out = "";
+      for (let i = 0; i < len; i++) out += CODE_CHARS[buf[i] % CODE_CHARS.length];
+      return out.slice(0,4) + "-" + out.slice(4,8) + "-" + out.slice(8);
+    }
+    const nowMs = () => Date.now();
+
+    // =========================
+    // Debt Math 
+    // =========================
+    function computeNetBalances(members, expenses) {
+      const net = {};
+      members.forEach(m => { net[m.uid] = 0; });
+      for (const exp of expenses) {
+        const amountCents = exp.amountCents || 0;
+        const paidBy = exp.paidByUserId;
+        const pct = exp.percentages || {};
+        if (net[paidBy] !== undefined) net[paidBy] += amountCents;
+        for (const [uid, p] of Object.entries(pct)) {
+          if (net[uid] !== undefined) net[uid] -= Math.round(amountCents * (p / 100));
+        }
+      }
+      return net;
+    }
+
+    function simplifyDebts(net) {
+      const creditors = [];
+      const debtors = [];
+      for (const [uid, amt] of Object.entries(net)) {
+        if (amt > 0) creditors.push([uid, amt]);
+        else if (amt < 0) debtors.push([uid, -amt]);
+      }
+      creditors.sort((a,b) => b[1]-a[1]);
+      debtors.sort((a,b) => b[1]-a[1]);
+      const transfers = [];
+      let i = 0, j = 0;
+      while (i < debtors.length && j < creditors.length) {
+        const [duid, damt] = debtors[i];
+        const [cuid, camt] = creditors[j];
+        const pay = Math.min(damt, camt);
+        transfers.push({ fromUserId: duid, toUserId: cuid, amountCents: pay });
+        debtors[i][1] -= pay;
+        creditors[j][1] -= pay;
+        if (debtors[i][1] === 0) i++;
+        if (creditors[j][1] === 0) j++;
+      }
+      return transfers;
+    }
 
     function App() {
       const [user, setUser] = useState(null);
       const [loading, setLoading] = useState(true);
+      const [errorMessage, setErrorMessage] = useState(null);
+      const [toast, setToast] = useState(null);
+
       const [groups, setGroups] = useState([]);
       const [activeGroupId, setActiveGroupId] = useState(null);
       const [activeGroup, setActiveGroup] = useState(null);
+
       const [members, setMembers] = useState([]);
       const [expenses, setExpenses] = useState([]);
-      const [toast, setToast] = useState(null);
-      const [customCat, setCustomCat] = useState("");
-      const [showAddExpense, setShowAddExpense] = useState(false);
-      const [showInviteModal, setShowInviteModal] = useState(false);
+      const [customCatName, setCustomCatName] = useState("");
 
-      const notify = (m) => { setToast(m); setTimeout(() => setToast(null), 2000); };
+      const [showInviteModal, setShowInviteModal] = useState(false);
+      const [showMembersModal, setShowMembersModal] = useState(false);
+      const [showJoinCodeModal, setShowJoinCodeModal] = useState(false);
+
+      const [inviteLink, setInviteLink] = useState("");
+      const [inviteCode, setInviteCode] = useState("");
+      const [inviteQrDataUrl, setInviteQrDataUrl] = useState("");
+
+      const [showAddExpense, setShowAddExpense] = useState(false);
+      const [joinCodeInput, setJoinCodeInput] = useState("");
+
+      const notify = (msg) => { setToast(msg); setTimeout(() => setToast(null), 1600); };
+
+      const handleLogin = () => signInWithPopup(auth, new GoogleAuthProvider()).catch(e => setErrorMessage(e.message));
 
       useEffect(() => {
-        return onAuthStateChanged(auth, async (u) => {
-          setUser(u);
+        const unsub = onAuthStateChanged(auth, async (u) => {
+          setUser(u || null);
           setLoading(false);
           if (u) {
-            await setDoc(doc(db, "users", u.uid), { displayName: u.displayName, email: u.email, updatedAt: serverTimestamp() }, { merge: true });
+            try {
+              await setDoc(doc(db, "users", u.uid), {
+                displayName: u.displayName || "User",
+                email: (u.email || "").toLowerCase(),
+                updatedAt: serverTimestamp()
+              }, { merge: true });
+            } catch (e) { console.error(e); }
           }
         });
+        return () => unsub();
       }, []);
 
       useEffect(() => {
-        if (!user) return;
+        if (!user?.uid) return;
         const q = query(collection(db, "groups"), where("memberIds", "array-contains", user.uid));
         return onSnapshot(q, (snap) => {
           const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
           setGroups(list);
           if (!activeGroupId && list.length) setActiveGroupId(list[0].id);
         });
-      }, [user]);
+      }, [user?.uid]);
 
       useEffect(() => {
         if (!activeGroupId) return;
-        onSnapshot(doc(db, "groups", activeGroupId), (s) => setActiveGroup(s.exists() ? { id: s.id, ...s.data() } : null));
-        onSnapshot(query(collection(db, "groups", activeGroupId, "members")), (s) => setMembers(s.docs.map(d => ({ uid: d.id, ...d.data() }))));
-        onSnapshot(query(collection(db, "groups", activeGroupId, "expenses"), orderBy("createdAt", "desc")), (s) => setExpenses(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+        onSnapshot(doc(db, "groups", activeGroupId), (snap) => setActiveGroup(snap.exists() ? { id: snap.id, ...snap.data() } : null));
+        onSnapshot(query(collection(db, "groups", activeGroupId, "members")), (snap) => setMembers(snap.docs.map(d => ({ uid: d.id, ...d.data() }))));
+        onSnapshot(query(collection(db, "groups", activeGroupId, "expenses"), orderBy("createdAt", "desc"), limit(100)), (snap) => setExpenses(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
       }, [activeGroupId]);
 
       const createGroup = async (name) => {
-        if (!name.trim()) return;
+        if (!name.trim() || !user?.uid) return;
         const ref = await addDoc(collection(db, "groups"), { name: name.trim(), ownerId: user.uid, memberIds: [user.uid], createdAt: serverTimestamp() });
         await setDoc(doc(db, "groups", ref.id, "members", user.uid), { displayName: user.displayName, email: user.email, joinedAt: serverTimestamp() });
-        setCustomCat(""); setActiveGroupId(ref.id);
+        setCustomCatName(""); setActiveGroupId(ref.id);
+        notify("Created " + name);
       };
 
-      const calculateBalances = () => {
-        const net = {};
-        members.forEach(m => net[m.uid] = 0);
-        expenses.forEach(ex => {
-          const amt = ex.amountCents;
-          net[ex.paidByUserId] += amt;
-          Object.entries(ex.percentages).forEach(([uid, p]) => {
-            if (net[uid] !== undefined) net[uid] -= Math.round(amt * (p / 100));
-          });
+      const createInvite = async () => {
+        if (!activeGroupId || !user?.uid) return;
+        const code = generateCode(10).toUpperCase();
+        const expiresAtMs = nowMs() + INVITE_EXPIRES_DAYS * 24 * 60 * 60 * 1000;
+        const invRef = await addDoc(collection(db, "groups", activeGroupId, "invites"), { invitedByUserId: user.uid, status: "pending", code, expiresAtMs, createdAt: serverTimestamp() });
+        await setDoc(doc(db, "joinCodes", code), { groupId: activeGroupId, inviteId: invRef.id, status: "pending", expiresAtMs, createdAt: serverTimestamp(), createdByUserId: user.uid });
+        const link = `${BASE_URL}?group=${activeGroupId}&invite=${invRef.id}`;
+        setInviteLink(link); setInviteCode(code);
+        try { const url = await window.QRCode.toDataURL(link, { margin: 1, width: 240 }); setInviteQrDataUrl(url); } catch { setInviteQrDataUrl(""); }
+      };
+
+      const acceptInvite = async (groupId, inviteId) => {
+        if (!user?.uid) return;
+        const invSnap = await getDoc(doc(db, "groups", groupId, "invites", inviteId));
+        if (!invSnap.exists()) throw new Error("Invite not found.");
+        await updateDoc(doc(db, "groups", groupId), { memberIds: arrayUnion(user.uid), updatedAt: serverTimestamp() });
+        await setDoc(doc(db, "groups", groupId, "members", user.uid), { displayName: user.displayName, email: user.email.toLowerCase(), joinedAt: serverTimestamp() });
+        setActiveGroupId(groupId); notify("Joined!");
+      };
+
+      const addExpense = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const strategy = fd.get("strategy");
+        const amountCents = toCents(fd.get("amount"));
+        const description = fd.get("desc");
+        const otherMember = members.find(m => m.uid !== user.uid);
+
+        let paidBy = user.uid;
+        let pcts = {};
+
+        if (strategy === "me-split") { 
+          paidBy = user.uid; pcts = { [user.uid]: 50, [otherMember?.uid || user.uid]: 50 }; 
+        } else if (strategy === "me-full") { 
+          paidBy = user.uid; pcts = { [user.uid]: 100 }; 
+        } else if (strategy === "them-split") { 
+          paidBy = otherMember?.uid || user.uid; pcts = { [user.uid]: 50, [otherMember?.uid || user.uid]: 50 }; 
+        } else if (strategy === "them-full") { 
+          paidBy = otherMember?.uid || user.uid; pcts = { [user.uid]: 100 }; 
+        }
+
+        await addDoc(collection(db, "groups", activeGroupId, "expenses"), {
+          description, amountCents, paidByUserId: paidBy, percentages: pcts,
+          createdAt: serverTimestamp(), createdByUserId: user.uid
         });
-        return net;
+        setShowAddExpense(false); notify("Saved");
       };
 
-      if (loading) return <div className="h-screen flex items-center justify-center font-black text-indigo-600 animate-pulse">SPLITSMART</div>;
+      const memberMap = useMemo(() => new Map(members.map(m => [m.uid, m])), [members]);
+      const stats = useMemo(() => {
+        const net = computeNetBalances(members, expenses);
+        const balances = members.map(m => ({ ...m, netCents: net[m.uid] || 0 }));
+        const transfers = simplifyDebts(net).map(t => ({ ...t, fromName: memberMap.get(t.fromUserId)?.displayName || "Member", toName: memberMap.get(t.toUserId)?.displayName || "Member" }));
+        return { balances, transfers };
+      }, [members, expenses, memberMap]);
+
+      if (loading) return <div className="h-screen flex items-center justify-center font-black text-indigo-600 animate-pulse text-2xl">SPLITSMART</div>;
 
       if (!user) return (
-        <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50">
-          <div className="bg-white p-10 rounded-[3rem] shadow-xl w-full max-w-sm text-center border">
-            <h1 className="text-4xl font-black mb-8">SplitSmart</h1>
-            <button onClick={() => signInWithPopup(auth, new GoogleAuthProvider())} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black flex items-center justify-center gap-3">
-              Continue with Google
-            </button>
+        <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
+          <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl max-w-md w-full text-center space-y-6 border modal-enter">
+            <h1 className="text-4xl font-black">SplitSmart</h1>
+            <button onClick={handleLogin} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-lg flex items-center justify-center gap-3"><img src="https://www.google.com/favicon.ico" className="w-5 h-5 invert" /> Continue with Google</button>
           </div>
         </div>
       );
 
-      const myNet = calculateBalances()[user.uid] || 0;
+      const myNet = stats.balances.find(b => b.uid === user.uid)?.netCents || 0;
 
       return (
-        <div className="min-h-screen flex flex-col md:flex-row bg-slate-50">
+        <div className="min-h-screen flex flex-col md:flex-row">
           {/* Sidebar */}
-          <div className="w-full md:w-72 bg-white border-r flex flex-col h-auto md:h-screen sticky top-0 z-10">
-            <div className="p-6">
-              <h2 className="font-black text-2xl text-indigo-600 tracking-tighter">SplitSmart</h2>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto px-4 space-y-1 pb-20">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 mb-2">Months</p>
-              {MONTHS.map(m => (
-                <button key={m} onClick={() => {
+          <div className="w-full md:w-80 bg-white border-r p-8 flex flex-col shrink-0 h-screen sticky top-0">
+            <h2 className="font-black text-2xl text-indigo-600 mb-6 tracking-tighter">SplitSmart</h2>
+            <div className="flex-1 space-y-6 overflow-y-auto pr-2">
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Months</h3>
+              <div className="space-y-1">
+                {MONTH_LIST.map(m => {
                   const existing = groups.find(g => g.name === m);
-                  if (existing) setActiveGroupId(existing.id); else createGroup(m);
-                }} className={`w-full text-left px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeGroup?.name === m ? 'bg-indigo-600 text-white' : 'hover:bg-slate-100 text-slate-600'}`}>
-                  {m}
-                </button>
-              ))}
-              <div className="pt-4 px-3">
-                <input value={customCat} onChange={e => setCustomCat(e.target.value)} onKeyDown={e => e.key === 'Enter' && createGroup(customCat)}
-                  className="w-full bg-slate-100 border-none rounded-xl p-3 text-xs font-bold" placeholder="+ Custom Category" />
+                  return (
+                    <button key={m} onClick={() => existing ? setActiveGroupId(existing.id) : createGroup(m)}
+                      className={`w-full text-left p-4 rounded-2xl font-black text-sm transition-all flex justify-between ${activeGroup?.name === m ? 'bg-indigo-600 text-white shadow-lg' : 'hover:bg-slate-50 text-slate-600'}`}>
+                      {m} {!existing && <span className="text-[10px] opacity-40">+</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 pt-4">Custom Categories</h3>
+              <div className="space-y-1">
+                {groups.filter(g => !MONTH_LIST.includes(g.name)).map(g => (
+                  <button key={g.id} onClick={() => setActiveGroupId(g.id)}
+                    className={`w-full text-left p-4 rounded-2xl font-black text-sm transition-all ${activeGroupId === g.id ? 'bg-indigo-600 text-white shadow-lg' : 'hover:bg-slate-50 text-slate-600'}`}>{g.name}</button>
+                ))}
+                <input className="w-full p-4 bg-slate-50 border-2 border-dashed rounded-2xl text-xs font-bold outline-none" placeholder="+ Custom Category" value={customCatName} onChange={e => setCustomCatName(e.target.value)} onKeyDown={e => e.key === 'Enter' && createGroup(customCatName)} />
               </div>
             </div>
-
-            <div className="p-6 border-t bg-white">
-               <p className="text-xs font-black truncate">{user.displayName}</p>
-               <button onClick={() => signOut(auth)} className="text-[10px] text-red-500 font-black uppercase">Sign Out</button>
+            <div className="mt-8 pt-6 border-t flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center font-black text-indigo-600">{(user.displayName || 'U')[0]}</div>
+              <div className="flex-1 truncate">
+                <p className="font-black text-xs truncate">{user.displayName}</p>
+                <button onClick={() => signOut(auth)} className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Sign Out</button>
+              </div>
             </div>
           </div>
 
           {/* Main Area */}
-          <div className="flex-1 p-4 md:p-10">
+          <div className="flex-1 p-6 md:p-12 overflow-y-auto">
+            {toast && <div className="fixed top-10 left-1/2 -translate-x-1/2 p-3 bg-slate-900 text-white rounded-2xl font-black text-xs z-50 shadow-2xl">{toast}</div>}
+            
             {activeGroup ? (
-              <div className="max-w-4xl mx-auto space-y-8">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="max-w-5xl mx-auto space-y-12">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                   <div>
-                    <h1 className="text-4xl font-black tracking-tighter">{activeGroup.name}</h1>
-                    <p className="text-slate-400 text-xs font-bold">{members.length} Members Sharing Expenses</p>
+                    <h1 className="text-5xl font-black tracking-tighter">{activeGroup.name}</h1>
+                    <p className="text-slate-400 font-bold mt-2 uppercase text-[10px] tracking-widest">{members.length} Members</p>
                   </div>
-                  <button onClick={() => setShowAddExpense(true)} className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black shadow-lg shadow-indigo-200 active:scale-95 transition-transform">
-                    Add Expense
-                  </button>
+                  <div className="flex gap-3">
+                    <button onClick={() => setShowMembersModal(true)} className="bg-white border-2 px-6 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-slate-50"><span className="w-4 h-4">{Icons.users}</span> Members</button>
+                    <button onClick={async () => { setShowInviteModal(true); await createInvite(); }} className="bg-white border-2 px-6 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-slate-50"><span className="w-4 h-4">{Icons.userPlus}</span> Invite</button>
+                    <button onClick={() => setShowAddExpense(true)} className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl hover:bg-indigo-700 active:scale-95">Add Expense</button>
+                  </div>
                 </div>
 
-                <div className={`p-8 rounded-[2.5rem] border ${myNet >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-                  <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Your Balance</p>
-                  <h3 className="text-3xl font-black">${Math.abs(myNet / 100).toFixed(2)}</h3>
-                  <p className="text-xs font-bold opacity-70">{myNet >= 0 ? "You are owed by others" : "You owe others"}</p>
+                <div className={`p-10 rounded-[3rem] border shadow-sm ${myNet >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                  <p className="text-[10px] font-black uppercase mb-4 opacity-60 tracking-widest">Your Net Balance</p>
+                  <h3 className="text-4xl font-black">${Math.abs(toDollars(myNet)).toFixed(2)}</h3>
+                  <p className="text-[10px] font-bold mt-2 opacity-70 uppercase tracking-widest">{myNet >= 0 ? "You are owed" : "You owe"}</p>
                 </div>
 
-                <div className="space-y-4">
-                  <h2 className="text-xl font-black">History</h2>
-                  {expenses.map(ex => (
-                    <div key={ex.id} className="bg-white p-5 rounded-2xl border flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-indigo-600">{Icons.receipt}</div>
-                        <div>
-                          <p className="font-black text-sm">{ex.description}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">Paid by {members.find(m => m.uid === ex.paidByUserId)?.displayName || "User"}</p>
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-12">
+                  <div className="xl:col-span-8 space-y-6">
+                    <h2 className="text-2xl font-black tracking-tight">Activity</h2>
+                    <div className="space-y-4">
+                      {expenses.map(exp => (
+                        <div key={exp.id} className="bg-white p-6 rounded-3xl border border-slate-100 flex items-center justify-between gap-6 hover:shadow-md transition-all">
+                          <div className="flex items-center gap-6">
+                            <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0"><span className="w-5 h-5">{Icons.receipt}</span></div>
+                            <div className="min-w-0"><p className="font-black text-lg truncate">{exp.description}</p><p className="text-xs font-bold text-slate-400 uppercase">Paid by {memberMap.get(exp.paidByUserId)?.displayName || "Member"}</p></div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <p className="font-black text-2xl">${toDollars(exp.amountCents).toFixed(2)}</p>
+                            <button onClick={() => confirm("Delete?") && deleteDoc(doc(db, "groups", activeGroup.id, "expenses", exp.id))} className="text-slate-200 hover:text-red-500"><span className="w-5 h-5 block">{Icons.trash}</span></button>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <p className="font-black text-lg">${(ex.amountCents / 100).toFixed(2)}</p>
-                        <button onClick={() => deleteDoc(doc(db, "groups", activeGroup.id, "expenses", ex.id))} className="text-slate-300 hover:text-red-500">{Icons.trash}</button>
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                  {expenses.length === 0 && <div className="text-center py-20 text-slate-300 font-bold italic">No expenses yet this month.</div>}
+                  </div>
+                  <div className="xl:col-span-4 space-y-6">
+                    <h2 className="text-2xl font-black tracking-tight">Debts</h2>
+                    <div className="bg-white rounded-[2.5rem] p-6 border space-y-4">
+                      {stats.transfers.length === 0 ? <p className="text-center text-slate-300 font-bold p-4">All settled 🎉</p> : 
+                        stats.transfers.map((t, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                            <p className="font-black text-xs">{t.fromName} pays {t.toName}</p>
+                            <p className="text-[10px] font-black text-indigo-600">${toDollars(t.amountCents).toFixed(2)}</p>
+                          </div>
+                        ))
+                      }
+                    </div>
+                  </div>
                 </div>
               </div>
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-300 font-black">SELECT A MONTH TO START</div>
-            )}
+            ) : <div className="h-full flex items-center justify-center text-slate-200 font-black text-2xl uppercase">Select a Month</div>}
           </div>
 
           {/* Add Expense Modal */}
           {showAddExpense && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-0 md:p-6">
-              <div className="bg-white w-full max-w-lg rounded-t-[2rem] md:rounded-[2.5rem] p-8 modal-enter">
-                <h2 className="text-2xl font-black mb-6">New Expense</h2>
-                <form onSubmit={async (e) => {
-                  e.preventDefault();
-                  const fd = new FormData(e.target);
-                  const strategy = fd.get("strategy");
-                  const amountCents = toCents(fd.get("amount"));
-                  const description = fd.get("desc");
-                  const otherMember = members.find(m => m.uid !== user.uid);
-
-                  let paidBy = user.uid;
-                  let pcts = {};
-
-                  if (strategy === "me-split") { 
-                    paidBy = user.uid; 
-                    pcts = { [user.uid]: 50, [otherMember?.uid || user.uid]: 50 }; 
-                  } else if (strategy === "me-full") { 
-                    paidBy = user.uid; 
-                    pcts = { [user.uid]: 100 }; 
-                  } else if (strategy === "them-split") { 
-                    paidBy = otherMember?.uid || user.uid; 
-                    pcts = { [user.uid]: 50, [otherMember?.uid || user.uid]: 50 }; 
-                  } else if (strategy === "them-full") { 
-                    paidBy = otherMember?.uid || user.uid; 
-                    pcts = { [user.uid]: 100 }; 
-                  }
-
-                  await addDoc(collection(db, "groups", activeGroupId, "expenses"), {
-                    description, amountCents, paidByUserId: paidBy, percentages: pcts,
-                    createdAt: serverTimestamp(), createdByUserId: user.uid
-                  });
-                  setShowAddExpense(false);
-                  notify("Expense Added");
-                }} className="space-y-4">
-                  <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400">Description</label>
-                    <input name="desc" required className="w-full bg-slate-50 border-2 rounded-xl p-4 font-bold" placeholder="e.g. Internet Bill" />
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-end md:items-center justify-center p-0 md:p-6 z-50">
+              <div className="bg-white rounded-t-[3rem] md:rounded-[3rem] p-10 max-w-lg w-full modal-enter shadow-2xl">
+                <h2 className="text-3xl font-black mb-6">Add Expense</h2>
+                <form onSubmit={addExpense} className="space-y-6">
+                  <input name="desc" required className="w-full p-5 bg-slate-50 border-2 rounded-2xl font-bold outline-none focus:border-indigo-400" placeholder="Enter a Description" />
+                  <div className="relative">
+                    <span className="absolute left-5 top-5 font-black text-2xl text-slate-300">$</span>
+                    <input name="amount" type="number" step="0.01" required className="w-full p-5 pl-10 bg-slate-50 border-2 rounded-2xl font-black text-2xl outline-none focus:border-indigo-400" placeholder="0.00" />
                   </div>
-                  <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400">Amount</label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-4 font-black text-slate-400">$</span>
-                      <input name="amount" type="number" step="0.01" required className="w-full bg-slate-50 border-2 rounded-xl p-4 pl-8 font-black text-xl" placeholder="0.00" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400">Math Strategy</label>
-                    <select name="strategy" className="w-full bg-slate-50 border-2 rounded-xl p-4 font-bold appearance-none">
-                      <option value="me-split">Paid by me and split equally</option>
-                      <option value="me-full">I owe the full amount</option>
-                      <option value="them-split">{members.find(m => m.uid !== user.uid)?.displayName || "Other"} paid, Split equally</option>
-                      <option value="them-full">{members.find(m => m.uid !== user.uid)?.displayName || "Other"} is owed full amount</option>
-                    </select>
-                  </div>
-                  <div className="flex gap-3 pt-4">
-                    <button type="button" onClick={() => setShowAddExpense(false)} className="flex-1 py-4 font-black text-slate-400 text-xs uppercase tracking-widest">Cancel</button>
-                    <button type="submit" className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg">Save Expense</button>
-                  </div>
+                  <select name="strategy" className="w-full p-5 bg-slate-50 border-2 rounded-2xl font-black text-sm outline-none appearance-none">
+                    <option value="me-split">Paid by me and split equally</option>
+                    <option value="me-full">I owe the full amount</option>
+                    <option value="them-split">{members.find(m => m.uid !== user.uid)?.displayName || "Other"} paid, Split equally</option>
+                    <option value="them-full">{members.find(m => m.uid !== user.uid)?.displayName || "Other"} is owed the full amount</option>
+                  </select>
+                  <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-3xl font-black text-lg shadow-xl shadow-indigo-100">Save Expense</button>
+                  <button type="button" onClick={() => setShowAddExpense(false)} className="w-full text-slate-400 font-bold uppercase text-[10px]">Cancel</button>
                 </form>
               </div>
             </div>
           )}
 
-          {toast && (
-            <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full text-xs font-black z-[100] shadow-2xl">
-              {toast}
+          {/* Members Modal */}
+          {showMembersModal && (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
+              <div className="bg-white rounded-[3rem] p-10 max-w-md w-full modal-enter shadow-2xl">
+                <h2 className="text-3xl font-black mb-6">Members</h2>
+                <div className="space-y-3">
+                  {members.map(m => (
+                    <div key={m.uid} className="flex items-center justify-between bg-slate-50 border rounded-2xl p-4">
+                      <div><p className="font-black text-sm">{m.displayName}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.email}</p></div>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => setShowMembersModal(false)} className="w-full mt-6 text-slate-400 font-bold uppercase text-[10px]">Close</button>
+              </div>
+            </div>
+          )}
+
+          {/* Invite Modal */}
+          {showInviteModal && (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
+              <div className="bg-white rounded-[3rem] p-10 max-w-lg w-full modal-enter shadow-2xl">
+                <h2 className="text-3xl font-black mb-6">Invite</h2>
+                <div className="space-y-4">
+                  <div className="bg-slate-50 border rounded-2xl p-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Invite Link</p>
+                    <p className="text-xs font-bold break-all text-slate-700">{inviteLink}</p>
+                  </div>
+                  <div className="bg-slate-50 border rounded-2xl p-4 text-center">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Join Code</p>
+                    <p className="text-3xl font-black tracking-widest">{inviteCode}</p>
+                  </div>
+                  {inviteQrDataUrl && <div className="flex justify-center"><img src={inviteQrDataUrl} className="w-48 h-48 border bg-white p-2 rounded-2xl" /></div>}
+                  <button onClick={() => setShowInviteModal(false)} className="w-full text-slate-400 font-bold uppercase text-[10px]">Close</button>
+                </div>
+              </div>
             </div>
           )}
         </div>
