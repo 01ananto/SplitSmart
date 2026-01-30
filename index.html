@@ -34,13 +34,12 @@
       getFirestore,
       collection, doc, addDoc, setDoc, updateDoc, deleteDoc,
       onSnapshot, query, where, orderBy, serverTimestamp,
-      arrayUnion, arrayRemove, getDoc, getDocs, limit
+      arrayUnion, getDoc, getDocs, limit
     } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
     // =========================
-    // 1) Firebase config (public)
+    // Firebase config (public)
     // =========================
-    // NOTE: This config cannot be hidden in a public website. Protect with rules + domain restrictions.
     const firebaseConfig = {
       apiKey: "AIzaSyAg5PYPLSBIOlIwTypFkNf8BRGgnIS3FXY",
       authDomain: "splitsmart-889da.firebaseapp.com",
@@ -58,29 +57,35 @@
     const { useEffect, useMemo, useState } = React;
 
     // =========================
-    // 2) UI constants
+    // Optional: Cloud Function for email sending
+    // =========================
+    // You will deploy a function named "sendInviteEmail" and paste the URL here.
+    // If you leave it blank, the app will fallback to "mailto:".
+    const SEND_INVITE_EMAIL_FUNCTION_URL = ""; // e.g. https://us-central1-YOUR_PROJECT.cloudfunctions.net/sendInviteEmail
+
+    // =========================
+    // UI constants
     // =========================
     const Icons = {
-      food: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>,
-      construction: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m22 2-8 4-10 12L2 22l4-2 12-10L22 2Z"></path></svg>,
-      car: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 13.1V16c0 .6.4 1 1 1h2"></path><circle cx="7" cy="17" r="2"></circle><circle cx="17" cy="17" r="2"></circle></svg>,
-      rent: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>,
       receipt: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="16" height="20" x="4" y="2" rx="2"></rect><line x1="8" x2="16" y1="6" y2="6"></line><line x1="8" x2="16" y1="10" y2="10"></line><line x1="8" x2="12" y1="14" y2="14"></line></svg>,
       userPlus: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" x2="19" y1="8" y2="14"></line><line x1="16" x2="22" y1="11" y2="11"></line></svg>,
-      plus: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" x2="12" y1="5" y2="19"></line><line x1="5" x2="19" y1="12" y2="12"></line></svg>,
-      settle: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+      settle: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>,
+      pencil: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z"></path></svg>,
+      trash: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path></svg>,
+      users: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-3-3.87"></path><path d="M7 21v-2a4 4 0 0 1 4-4h0a4 4 0 0 1 4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>,
+      link: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 1 0-7l1-1a5 5 0 0 1 7 7l-1 1"></path><path d="M14 11a5 5 0 0 1 0 7l-1 1a5 5 0 0 1-7-7l1-1"></path></svg>,
     };
 
     const CATEGORIES = [
-      { id: 'food', name: 'Food', icon: 'food' },
-      { id: 'construction', name: 'Home Construction', icon: 'construction' },
-      { id: 'car', name: 'Car', icon: 'car' },
-      { id: 'rent', name: 'Rent', icon: 'rent' },
-      { id: 'other', name: 'Other', icon: 'receipt' },
+      { id: 'food', name: 'Food' },
+      { id: 'construction', name: 'Home Construction' },
+      { id: 'car', name: 'Car' },
+      { id: 'rent', name: 'Rent' },
+      { id: 'other', name: 'Other' },
     ];
 
     // =========================
-    // 3) Helpers (money + math)
+    // Helpers (money + math)
     // =========================
     const toCents = (val) => {
       const n = Number(val);
@@ -90,13 +95,10 @@
     const toDollars = (cents) => (cents / 100);
 
     function distributeRounding(amountCents, owedMapCents, percentages) {
-      // owedMapCents: {uid: cents} already rounded
-      // Ensure sum == amountCents by distributing remainder
       const sum = Object.values(owedMapCents).reduce((a,b)=>a+b,0);
       let remainder = amountCents - sum;
       if (remainder === 0) return owedMapCents;
 
-      // pick uid to receive remainder: highest percentage (stable)
       const entries = Object.entries(percentages || {});
       entries.sort((a,b) => (b[1] ?? 0) - (a[1] ?? 0));
       const targetUid = entries[0]?.[0] || Object.keys(owedMapCents)[0];
@@ -106,46 +108,35 @@
       return fixed;
     }
 
-    function computeNetBalances(members, transactions) {
-      // netCents: + means user is owed, - means user owes
+    function computeNetBalances(members, expenses, payments) {
       const net = {};
       members.forEach(m => { net[m.uid] = 0; });
 
-      for (const tx of transactions) {
-        if (tx.type === 'PAYMENT') {
-          // from paid to -> from net increases, to net decreases
-          const amt = tx.amountCents || 0;
-          if (net[tx.fromUserId] !== undefined) net[tx.fromUserId] += amt;
-          if (net[tx.toUserId] !== undefined) net[tx.toUserId] -= amt;
-          continue;
-        }
-
-        // EXPENSE
-        const amountCents = tx.amountCents || 0;
-        const paidBy = tx.paidByUserId;
-        const participants = Array.isArray(tx.participants) ? tx.participants : [];
+      // Expenses
+      for (const exp of expenses) {
+        const amountCents = exp.amountCents || 0;
+        const paidBy = exp.paidByUserId;
+        const participants = Array.isArray(exp.participants) ? exp.participants : [];
 
         if (net[paidBy] !== undefined) net[paidBy] += amountCents;
 
-        if (tx.splitType === 'PERCENTAGE') {
-          const percentages = tx.percentages || {};
+        if (exp.splitType === 'PERCENTAGE') {
+          const percentages = exp.percentages || {};
           let owed = {};
           for (const uid of participants) {
             const pct = Number(percentages[uid] || 0);
-            const cents = Math.round(amountCents * (pct / 100));
-            owed[uid] = cents;
+            owed[uid] = Math.round(amountCents * (pct / 100));
           }
           owed = distributeRounding(amountCents, owed, percentages);
           for (const uid of participants) {
             if (net[uid] !== undefined) net[uid] -= (owed[uid] || 0);
           }
         } else {
-          // EQUAL
+          // Equal
           const count = participants.length || 0;
           if (count > 0) {
             const base = Math.floor(amountCents / count);
             let rem = amountCents - base * count;
-            // distribute remainder cents to first participants
             for (let i = 0; i < participants.length; i++) {
               const uid = participants[i];
               const owe = base + (rem > 0 ? 1 : 0);
@@ -155,16 +146,23 @@
           }
         }
       }
+
+      // Payments (optional) reduce debts
+      for (const p of payments) {
+        const amt = p.amountCents || 0;
+        if (net[p.fromUserId] !== undefined) net[p.fromUserId] += amt;
+        if (net[p.toUserId] !== undefined) net[p.toUserId] -= amt;
+      }
+
       return net;
     }
 
     function simplifyDebts(net) {
-      // net: {uid: cents}, + is creditor, - is debtor
       const creditors = [];
       const debtors = [];
       for (const [uid, amt] of Object.entries(net)) {
         if (amt > 0) creditors.push([uid, amt]);
-        else if (amt < 0) debtors.push([uid, -amt]); // store positive owed
+        else if (amt < 0) debtors.push([uid, -amt]);
       }
       creditors.sort((a,b) => b[1]-a[1]);
       debtors.sort((a,b) => b[1]-a[1]);
@@ -185,38 +183,40 @@
     }
 
     // =========================
-    // 4) App
+    // App
     // =========================
     function App() {
       const [user, setUser] = useState(null);
       const [loading, setLoading] = useState(true);
       const [errorMessage, setErrorMessage] = useState(null);
+      const [toast, setToast] = useState(null);
 
       const [groups, setGroups] = useState([]);
       const [activeGroupId, setActiveGroupId] = useState(null);
+      const [activeGroup, setActiveGroup] = useState(null);
 
       const [members, setMembers] = useState([]);
-      const [transactions, setTransactions] = useState([]); // expenses + payments
+      const [expenses, setExpenses] = useState([]);
+      const [payments, setPayments] = useState([]);
 
       const [pendingInvites, setPendingInvites] = useState([]);
 
       const [newGroupName, setNewGroupName] = useState("");
 
       const [showInviteModal, setShowInviteModal] = useState(false);
+      const [showMembersModal, setShowMembersModal] = useState(false);
       const [inviteEmail, setInviteEmail] = useState("");
+      const [inviteLink, setInviteLink] = useState("");
 
       const [showAddExpense, setShowAddExpense] = useState(false);
-      const [showRecordPayment, setShowRecordPayment] = useState(false);
+      const [showEditExpense, setShowEditExpense] = useState(false);
+      const [editExpense, setEditExpense] = useState(null);
 
-      // Expense form state
+      // Add/Edit expense state
       const [splitType, setSplitType] = useState("PERCENTAGE"); // PERCENTAGE or EQUAL
       const [payerUid, setPayerUid] = useState("");
       const [selectedParticipants, setSelectedParticipants] = useState({});
       const [percentages, setPercentages] = useState({}); // {uid: number}
-
-      // Payment form state
-      const [paymentFrom, setPaymentFrom] = useState("");
-      const [paymentTo, setPaymentTo] = useState("");
 
       // -------- Auth --------
       useEffect(() => {
@@ -226,7 +226,6 @@
           setErrorMessage(null);
 
           if (u) {
-            // create/update user profile doc
             try {
               await setDoc(doc(db, "users", u.uid), {
                 displayName: u.displayName || "User",
@@ -234,3 +233,1001 @@
                 photoURL: u.photoURL || null,
                 updatedAt: serverTimestamp(),
                 createdAt: serverTimestamp()
+              }, { merge: true });
+            } catch (e) {
+              console.error(e);
+              setErrorMessage(e.message);
+            }
+          } else {
+            setGroups([]); setActiveGroupId(null); setActiveGroup(null);
+            setMembers([]); setExpenses([]); setPayments([]);
+            setPendingInvites([]); setInviteLink("");
+          }
+        });
+        return () => unsub();
+      }, []);
+
+      const handleLogin = () =>
+        signInWithPopup(auth, new GoogleAuthProvider()).catch((e) => setErrorMessage(e.message));
+
+      // -------- Groups listener --------
+      useEffect(() => {
+        if (!user?.uid) return;
+
+        const q = query(collection(db, "groups"), where("memberIds", "array-contains", user.uid));
+        const unsub = onSnapshot(q, (snap) => {
+          const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setGroups(list);
+
+          if (!activeGroupId && list.length) setActiveGroupId(list[0].id);
+          if (activeGroupId && !list.some(g => g.id === activeGroupId)) {
+            setActiveGroupId(list[0]?.id || null);
+          }
+        }, (err) => {
+          console.error(err);
+          setErrorMessage(err.code === "permission-denied"
+            ? "Permission denied. Publish Firestore rules (see rules below)."
+            : err.message);
+        });
+
+        return () => unsub();
+      }, [user?.uid, activeGroupId]);
+
+      // -------- Active group doc listener --------
+      useEffect(() => {
+        if (!activeGroupId) return;
+        const unsub = onSnapshot(doc(db, "groups", activeGroupId), (snap) => {
+          if (snap.exists()) setActiveGroup({ id: snap.id, ...snap.data() });
+          else setActiveGroup(null);
+        });
+        return () => unsub();
+      }, [activeGroupId]);
+
+      // -------- Members listener --------
+      useEffect(() => {
+        if (!user?.uid || !activeGroupId) return;
+        const q = query(collection(db, "groups", activeGroupId, "members"));
+        const unsub = onSnapshot(q, (snap) => {
+          const list = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+          setMembers(list);
+
+          if (!payerUid) setPayerUid(user.uid);
+
+          // default participants: all members checked
+          const defaults = {};
+          list.forEach(m => { defaults[m.uid] = true; });
+          setSelectedParticipants(prev => Object.keys(prev).length ? prev : defaults);
+
+          // default percentages: equal among all selected
+          setPercentages(prev => {
+            if (Object.keys(prev).length) return prev;
+            const count = list.length || 1;
+            const eq = {};
+            list.forEach(m => { eq[m.uid] = Number((100 / count).toFixed(2)); });
+            return eq;
+          });
+        });
+        return () => unsub();
+      }, [user?.uid, activeGroupId]);
+
+      // -------- Expenses listener --------
+      useEffect(() => {
+        if (!user?.uid || !activeGroupId) return;
+        const q = query(collection(db, "groups", activeGroupId, "expenses"), orderBy("date", "desc"), limit(200));
+        const unsub = onSnapshot(q, (snap) => {
+          setExpenses(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+        return () => unsub();
+      }, [user?.uid, activeGroupId]);
+
+      // -------- Payments listener (optional) --------
+      useEffect(() => {
+        if (!user?.uid || !activeGroupId) return;
+        const q = query(collection(db, "groups", activeGroupId, "payments"), orderBy("date", "desc"), limit(200));
+        const unsub = onSnapshot(q, (snap) => {
+          setPayments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+        return () => unsub();
+      }, [user?.uid, activeGroupId]);
+
+      // -------- Pending invites (scan groups user is already in; plus invite link auto-accept) --------
+      useEffect(() => {
+        if (!user?.email) return;
+        const email = user.email.toLowerCase();
+
+        const unsubs = [];
+        const collected = new Map();
+
+        groups.forEach(g => {
+          const invQ = query(
+            collection(db, "groups", g.id, "invites"),
+            where("targetEmail", "==", email),
+            where("status", "==", "pending")
+          );
+          const unsub = onSnapshot(invQ, (snap) => {
+            for (const [k,v] of collected.entries()) {
+              if (v.groupId === g.id) collected.delete(k);
+            }
+            snap.docs.forEach(d => collected.set(d.id, { id: d.id, groupId: g.id, ...d.data(), groupName: g.name }));
+            setPendingInvites(Array.from(collected.values()));
+          });
+          unsubs.push(unsub);
+        });
+
+        return () => unsubs.forEach(u => u());
+      }, [groups, user?.email]);
+
+      // -------- Auto-accept invite from URL params (?group=...&invite=...) --------
+      useEffect(() => {
+        if (!user?.uid || !user?.email) return;
+
+        const params = new URLSearchParams(window.location.search);
+        const groupId = params.get("group");
+        const inviteId = params.get("invite");
+        if (!groupId || !inviteId) return;
+
+        (async () => {
+          try {
+            const invRef = doc(db, "groups", groupId, "invites", inviteId);
+            const invSnap = await getDoc(invRef);
+            if (!invSnap.exists()) return;
+
+            const inv = invSnap.data();
+            const email = user.email.toLowerCase();
+            if ((inv.targetEmail || "").toLowerCase() !== email) {
+              setToast("Invite email does not match your Google login email.");
+              return;
+            }
+            if (inv.status !== "pending") return;
+
+            await acceptInvite({ id: inviteId, groupId, ...inv });
+
+            // clean URL
+            window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
+          } catch (e) {
+            console.error(e);
+            setErrorMessage(e.message);
+          }
+        })();
+      }, [user?.uid, user?.email]);
+
+      // -------- Computed stats --------
+      const stats = useMemo(() => {
+        if (!user?.uid || !activeGroupId) return { totalCents: 0, perPersonCents: 0, balances: [], transfers: [] };
+
+        const totalCents = expenses.reduce((s,t) => s + (t.amountCents || 0), 0);
+
+        const memberMap = new Map(members.map(m => [m.uid, m]));
+        const net = computeNetBalances(members, expenses, payments);
+
+        const balances = members.map(m => ({ ...m, netCents: net[m.uid] || 0 }));
+
+        const transfers = simplifyDebts(net).map(tr => ({
+          ...tr,
+          fromName: memberMap.get(tr.fromUserId)?.displayName || memberMap.get(tr.fromUserId)?.name || "Member",
+          toName: memberMap.get(tr.toUserId)?.displayName || memberMap.get(tr.toUserId)?.name || "Member"
+        }));
+
+        const perPersonCents = members.length ? Math.round(totalCents / members.length) : 0;
+
+        return { totalCents, perPersonCents, balances, transfers };
+      }, [expenses, payments, members, user?.uid, activeGroupId]);
+
+      // =========================
+      // Permissions
+      // =========================
+      const isOwner = !!(activeGroup && user && activeGroup.ownerId === user.uid);
+
+      const canEditExpense = (exp) => {
+        if (!user) return false;
+        return isOwner || exp.createdByUserId === user.uid;
+      };
+
+      // Inviter-only member removal:
+      // member.addedByUserId is set from invite.invitedByUserId when accepted.
+      const canRemoveMember = (member) => {
+        if (!user || !member) return false;
+        if (member.uid === user.uid) return false; // don't remove yourself here
+        return isOwner || member.addedByUserId === user.uid;
+      };
+
+      // =========================
+      // Actions
+      // =========================
+      const createGroup = async () => {
+        if (!newGroupName.trim() || !user?.uid || !user?.email) return;
+        setErrorMessage(null);
+        try {
+          const groupRef = await addDoc(collection(db, "groups"), {
+            name: newGroupName.trim(),
+            ownerId: user.uid,
+            memberIds: [user.uid],
+            memberEmails: [user.email.toLowerCase()],
+            createdAt: serverTimestamp()
+          });
+
+          await setDoc(doc(db, "groups", groupRef.id, "members", user.uid), {
+            displayName: user.displayName || "User",
+            email: user.email.toLowerCase(),
+            role: "owner",
+            joinedAt: serverTimestamp(),
+            addedByUserId: user.uid
+          });
+
+          setNewGroupName("");
+          setActiveGroupId(groupRef.id);
+        } catch (e) {
+          console.error(e);
+          setErrorMessage(e.message);
+        }
+      };
+
+      const copyToClipboard = async (text) => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setToast("Copied!");
+          setTimeout(() => setToast(null), 1200);
+        } catch {
+          setToast("Copy failed");
+          setTimeout(() => setToast(null), 1200);
+        }
+      };
+
+      const sendInvite = async (e) => {
+        e.preventDefault();
+        if (!activeGroupId || !inviteEmail.trim() || !user?.uid) return;
+        setErrorMessage(null);
+        const email = inviteEmail.toLowerCase().trim();
+
+        try {
+          const inviteRef = await addDoc(collection(db, "groups", activeGroupId, "invites"), {
+            targetEmail: email,
+            invitedByUserId: user.uid,
+            status: "pending",
+            createdAt: serverTimestamp()
+          });
+
+          // Build an invite link that works with GitHub Pages repo path
+          const base = "https://01ananto.github.io/SplitSmart/";
+          const link = `${base}?group=${encodeURIComponent(activeGroupId)}&invite=${encodeURIComponent(inviteRef.id)}`;
+          setInviteLink(link);
+
+          // Try real email sending via Cloud Function, else fallback to mailto
+          const groupName = activeGroup?.name || "SplitSmart Group";
+
+          if (SEND_INVITE_EMAIL_FUNCTION_URL) {
+            await fetch(SEND_INVITE_EMAIL_FUNCTION_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                toEmail: email,
+                groupName,
+                inviteLink: link,
+                inviterName: user.displayName || "Someone"
+              })
+            });
+            setToast("Invite email sent!");
+            setTimeout(() => setToast(null), 1400);
+          } else {
+            // fallback mailto (not automatic send)
+            window.location.href =
+              `mailto:${email}?subject=Join SplitSmart&body=You were invited to join "${groupName}".%0A%0AClick to join: ${encodeURIComponent(link)}%0A%0ASign in with Google using: ${email}`;
+          }
+
+          setInviteEmail("");
+        } catch (e) {
+          console.error(e);
+          setErrorMessage(e.message);
+        }
+      };
+
+      const acceptInvite = async (invite) => {
+        if (!user?.uid || !user?.email) return;
+        setErrorMessage(null);
+
+        try {
+          const groupRef = doc(db, "groups", invite.groupId);
+          const groupSnap = await getDoc(groupRef);
+          if (!groupSnap.exists()) throw new Error("Group not found.");
+
+          await updateDoc(groupRef, {
+            memberIds: arrayUnion(user.uid),
+            memberEmails: arrayUnion(user.email.toLowerCase())
+          });
+
+          // IMPORTANT: store addedByUserId = inviter, so inviter-only removal works
+          await setDoc(doc(db, "groups", invite.groupId, "members", user.uid), {
+            displayName: user.displayName || "User",
+            email: user.email.toLowerCase(),
+            role: "member",
+            joinedAt: serverTimestamp(),
+            addedByUserId: invite.invitedByUserId || null
+          }, { merge: true });
+
+          await updateDoc(doc(db, "groups", invite.groupId, "invites", invite.id), {
+            status: "accepted"
+          });
+
+          setActiveGroupId(invite.groupId);
+          setToast("Invite accepted!");
+          setTimeout(() => setToast(null), 1400);
+        } catch (e) {
+          console.error(e);
+          setErrorMessage(e.message);
+        }
+      };
+
+      const declineInvite = async (invite) => {
+        try {
+          await updateDoc(doc(db, "groups", invite.groupId, "invites", invite.id), { status: "declined" });
+        } catch (e) {
+          console.error(e);
+          setErrorMessage(e.message);
+        }
+      };
+
+      const removeMember = async (member) => {
+        if (!activeGroupId || !member?.uid) return;
+        if (!canRemoveMember(member)) {
+          setErrorMessage("You don't have permission to remove this member.");
+          return;
+        }
+
+        try {
+          // Remove member doc
+          await deleteDoc(doc(db, "groups", activeGroupId, "members", member.uid));
+
+          // Remove from group arrays (best effort)
+          // Note: arrayRemove needs exact string match; ok for uid/email.
+          await updateDoc(doc(db, "groups", activeGroupId), {
+            memberIds: activeGroup?.memberIds ? activeGroup.memberIds.filter(x => x !== member.uid) : [],
+            memberEmails: activeGroup?.memberEmails ? activeGroup.memberEmails.filter(x => x !== (member.email || "")) : []
+          });
+
+          setToast("Member removed");
+          setTimeout(() => setToast(null), 1400);
+        } catch (e) {
+          console.error(e);
+          setErrorMessage(e.message);
+        }
+      };
+
+      const toggleParticipant = (uid) => setSelectedParticipants(prev => ({ ...prev, [uid]: !prev[uid] }));
+
+      const getActiveParticipants = () =>
+        members.map(m => m.uid).filter(uid => selectedParticipants[uid]);
+
+      const validatePercentages = (uids, pctMap) => {
+        const sum = uids.reduce((s,uid) => s + Number(pctMap[uid] || 0), 0);
+        return Math.abs(sum - 100) <= 0.01;
+      };
+
+      const addExpense = async (e) => {
+        e.preventDefault();
+        if (!user?.uid || !activeGroupId) return;
+        setErrorMessage(null);
+
+        const formData = new FormData(e.target);
+        const description = String(formData.get('description') || '').trim();
+        const category = String(formData.get('category') || 'other');
+        const amountCents = toCents(formData.get('amount'));
+        const paidByUserId = payerUid || user.uid;
+
+        const participants = getActiveParticipants();
+        if (!participants.length) return setErrorMessage("Select at least 1 participant.");
+        if (!amountCents || amountCents <= 0) return setErrorMessage("Enter a valid amount.");
+
+        const exp = {
+          description,
+          category,
+          amountCents,
+          paidByUserId,
+          participants,
+          splitType,
+          createdByUserId: user.uid,
+          createdAt: serverTimestamp(),
+          date: serverTimestamp()
+        };
+
+        if (splitType === "PERCENTAGE") {
+          if (!validatePercentages(participants, percentages)) {
+            return setErrorMessage("Percentages must total 100% across selected participants.");
+          }
+          const pct = {};
+          participants.forEach(uid => { pct[uid] = Number(percentages[uid] || 0); });
+          exp.percentages = pct;
+        }
+
+        try {
+          await addDoc(collection(db, "groups", activeGroupId, "expenses"), exp);
+          setShowAddExpense(false);
+        } catch (e) {
+          console.error(e);
+          setErrorMessage(e.message);
+        }
+      };
+
+      const openEditExpense = (exp) => {
+        setEditExpense(exp);
+        setShowEditExpense(true);
+
+        // prefill modal state
+        setSplitType(exp.splitType || "PERCENTAGE");
+        setPayerUid(exp.paidByUserId || user.uid);
+
+        const sel = {};
+        (exp.participants || []).forEach(uid => { sel[uid] = true; });
+        // keep others unchecked
+        members.forEach(m => { if (sel[m.uid] === undefined) sel[m.uid] = false; });
+        setSelectedParticipants(sel);
+
+        setPercentages(exp.percentages || {});
+      };
+
+      const saveEditExpense = async (e) => {
+        e.preventDefault();
+        if (!editExpense?.id || !activeGroupId || !user?.uid) return;
+        if (!canEditExpense(editExpense)) return setErrorMessage("You can't edit this expense.");
+
+        setErrorMessage(null);
+        const formData = new FormData(e.target);
+
+        const description = String(formData.get('description') || '').trim();
+        const category = String(formData.get('category') || 'other');
+        const amountCents = toCents(formData.get('amount'));
+        const paidByUserId = payerUid || user.uid;
+
+        const participants = getActiveParticipants();
+        if (!participants.length) return setErrorMessage("Select at least 1 participant.");
+        if (!amountCents || amountCents <= 0) return setErrorMessage("Enter a valid amount.");
+
+        const patch = {
+          description,
+          category,
+          amountCents,
+          paidByUserId,
+          participants,
+          splitType,
+          updatedAt: serverTimestamp()
+        };
+
+        if (splitType === "PERCENTAGE") {
+          if (!validatePercentages(participants, percentages)) {
+            return setErrorMessage("Percentages must total 100% across selected participants.");
+          }
+          const pct = {};
+          participants.forEach(uid => { pct[uid] = Number(percentages[uid] || 0); });
+          patch.percentages = pct;
+        } else {
+          patch.percentages = {}; // clear
+        }
+
+        try {
+          await updateDoc(doc(db, "groups", activeGroupId, "expenses", editExpense.id), patch);
+          setShowEditExpense(false);
+          setEditExpense(null);
+          setToast("Expense updated");
+          setTimeout(() => setToast(null), 1200);
+        } catch (e) {
+          console.error(e);
+          setErrorMessage(e.message);
+        }
+      };
+
+      const deleteExpense = async (exp) => {
+        if (!exp?.id || !activeGroupId) return;
+        if (!canEditExpense(exp)) return setErrorMessage("You can't delete this expense.");
+        if (!confirm("Delete this expense?")) return;
+
+        try {
+          await deleteDoc(doc(db, "groups", activeGroupId, "expenses", exp.id));
+          setToast("Deleted");
+          setTimeout(() => setToast(null), 1200);
+        } catch (e) {
+          console.error(e);
+          setErrorMessage(e.message);
+        }
+      };
+
+      // =========================
+      // UI
+      // =========================
+      if (loading) {
+        return <div className="h-screen flex items-center justify-center font-black text-indigo-600 text-2xl animate-pulse">SPLITSMART</div>;
+      }
+
+      if (!user) {
+        return (
+          <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
+            <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl max-w-md w-full text-center space-y-8 border modal-enter">
+              <h1 className="text-4xl font-black">SplitSmart</h1>
+              {errorMessage && <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-xs font-bold">{errorMessage}</div>}
+              <button onClick={handleLogin} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-lg hover:bg-slate-800 transition-all flex items-center justify-center gap-3">
+                <img src="https://www.google.com/favicon.ico" className="w-5 h-5 invert" /> Continue with Google
+              </button>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                If you have an invite link, open it then sign in.
+              </p>
+            </div>
+          </div>
+        );
+      }
+
+      const myNet = stats.balances.find(b => b.uid === user.uid)?.netCents || 0;
+
+      return (
+        <div className="min-h-screen flex flex-col md:flex-row">
+          {/* Sidebar */}
+          <div className="w-full md:w-80 bg-white border-r p-8 flex flex-col shrink-0">
+            <h2 className="font-black text-2xl text-indigo-600 mb-6 tracking-tighter">SplitSmart</h2>
+
+            {/* Pending Invites */}
+            {pendingInvites.length > 0 && (
+              <div className="mb-6 bg-indigo-50 border border-indigo-100 rounded-3xl p-4">
+                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-3">Pending Invites</p>
+                <div className="space-y-2">
+                  {pendingInvites.map(inv => (
+                    <div key={inv.id} className="bg-white rounded-2xl p-3 border flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-black text-xs truncate">{inv.groupName || "Group"}</p>
+                        <p className="text-[10px] font-bold text-slate-400 truncate">{inv.targetEmail}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => acceptInvite(inv)} className="px-3 py-1 rounded-xl bg-indigo-600 text-white text-[10px] font-black">Accept</button>
+                        <button onClick={() => declineInvite(inv)} className="px-3 py-1 rounded-xl bg-slate-100 text-slate-700 text-[10px] font-black">No</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex-1 space-y-6 overflow-y-auto">
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Houses</h3>
+              <div className="space-y-2">
+                {groups.map(g => (
+                  <button
+                    key={g.id}
+                    onClick={() => setActiveGroupId(g.id)}
+                    className={`w-full text-left p-4 rounded-2xl font-black text-sm transition-all ${
+                      activeGroupId === g.id ? 'bg-indigo-600 text-white shadow-lg' : 'hover:bg-slate-50 text-slate-600'
+                    }`}
+                  >
+                    {g.name}
+                  </button>
+                ))}
+              </div>
+
+              <input
+                className="w-full p-4 bg-slate-50 border-2 border-dashed rounded-2xl text-xs font-bold outline-none"
+                placeholder="+ New House (Enter)"
+                value={newGroupName}
+                onChange={e => setNewGroupName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && createGroup()}
+              />
+            </div>
+
+            <div className="mt-8 pt-6 border-t flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center font-black text-indigo-600">
+                {(user.displayName || 'U')[0]}
+              </div>
+              <div className="flex-1 truncate">
+                <p className="font-black text-xs truncate">{user.displayName}</p>
+                <button onClick={() => signOut(auth)} className="text-[10px] font-bold text-red-500 uppercase tracking-widest">
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Main */}
+          <div className="flex-1 p-6 md:p-12 overflow-y-auto">
+            {toast && <div className="mb-4 p-3 bg-slate-900 text-white rounded-2xl font-black text-xs inline-block">{toast}</div>}
+
+            {errorMessage && (
+              <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl font-bold text-xs">
+                {errorMessage}
+              </div>
+            )}
+
+            {!activeGroup ? (
+              <div className="h-full flex flex-col items-center justify-center text-slate-200">
+                <h2 className="text-2xl font-black text-slate-300">Choose a house to start</h2>
+              </div>
+            ) : (
+              <div className="max-w-5xl mx-auto space-y-12">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                  <div>
+                    <h1 className="text-5xl font-black tracking-tighter">{activeGroup.name}</h1>
+                    <p className="text-slate-400 font-bold mt-2 uppercase text-[10px] tracking-widest">
+                      {members.length} Members • {isOwner ? "Owner" : "Member"}
+                    </p>
+                  </div>
+
+                  <div className="flex gap-3 flex-wrap">
+                    <button onClick={() => setShowMembersModal(true)} className="bg-white border-2 px-6 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-slate-50">
+                      <span className="w-4 h-4">{Icons.users}</span> Members
+                    </button>
+
+                    <button onClick={() => setShowInviteModal(true)} className="bg-white border-2 px-6 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-slate-50">
+                      <span className="w-4 h-4">{Icons.userPlus}</span> Invite
+                    </button>
+
+                    <button onClick={() => setShowAddExpense(true)} className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl hover:bg-indigo-700 active:scale-95">
+                      Add Expense
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                  <div className="bg-white p-10 rounded-[3rem] border shadow-sm">
+                    <p className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Spent</p>
+                    <h3 className="text-4xl font-black">${toDollars(stats.totalCents).toFixed(2)}</h3>
+                  </div>
+                  <div className="bg-white p-10 rounded-[3rem] border shadow-sm">
+                    <p className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Average</p>
+                    <h3 className="text-4xl font-black">${toDollars(stats.perPersonCents).toFixed(2)}</h3>
+                  </div>
+                  <div className={`p-10 rounded-[3rem] border shadow-sm ${myNet >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                    <p className="text-[10px] font-black uppercase mb-4 opacity-60 tracking-widest">Your Net</p>
+                    <h3 className="text-4xl font-black">${Math.abs(toDollars(myNet)).toFixed(2)}</h3>
+                    <p className="text-[10px] font-bold mt-2 opacity-70 uppercase tracking-widest">
+                      {myNet >= 0 ? "You are owed" : "You owe"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-12">
+                  {/* Activity */}
+                  <div className="xl:col-span-8 space-y-6">
+                    <h2 className="text-2xl font-black tracking-tight">Activity</h2>
+                    <div className="space-y-4">
+                      {expenses.length === 0 ? (
+                        <div className="p-16 text-center text-slate-300 font-bold border-4 border-dashed rounded-[3rem]">
+                          Empty ledger
+                        </div>
+                      ) : (
+                        expenses.map(exp => {
+                          const paidByName = members.find(m => m.uid === exp.paidByUserId)?.displayName || "Member";
+                          const amt = toDollars(exp.amountCents || 0).toFixed(2);
+                          return (
+                            <div key={exp.id} className="bg-white p-6 rounded-3xl border border-slate-100 flex items-center gap-6 hover:shadow-md transition-all">
+                              <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0">
+                                <div className="w-5 h-5">{Icons.receipt}</div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-black text-lg truncate">{exp.description || "Expense"}</p>
+                                <p className="text-xs font-bold text-slate-400 uppercase truncate">
+                                  Paid by {paidByName} • {exp.splitType === "PERCENTAGE" ? "Percent split" : "Equal split"}
+                                </p>
+                              </div>
+
+                              <div className="flex items-center gap-3">
+                                <p className="font-black text-2xl shrink-0">${amt}</p>
+
+                                {canEditExpense(exp) && (
+                                  <>
+                                    <button
+                                      title="Edit"
+                                      onClick={() => openEditExpense(exp)}
+                                      className="p-2 rounded-xl bg-slate-50 border hover:bg-slate-100"
+                                    >
+                                      <span className="w-4 h-4 block">{Icons.pencil}</span>
+                                    </button>
+                                    <button
+                                      title="Delete"
+                                      onClick={() => deleteExpense(exp)}
+                                      className="p-2 rounded-xl bg-red-50 border border-red-100 hover:bg-red-100 text-red-700"
+                                    >
+                                      <span className="w-4 h-4 block">{Icons.trash}</span>
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Debts */}
+                  <div className="xl:col-span-4 space-y-6">
+                    <h2 className="text-2xl font-black tracking-tight">Simplified Debts</h2>
+
+                    <div className="bg-white rounded-[2.5rem] p-6 border space-y-4">
+                      {stats.transfers.length === 0 ? (
+                        <div className="p-6 text-center text-slate-300 font-bold">
+                          All settled 🎉
+                        </div>
+                      ) : (
+                        stats.transfers.map((t, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                            <div className="min-w-0">
+                              <p className="font-black text-xs truncate max-w-[160px]">
+                                {t.fromName} pays {t.toName}
+                              </p>
+                              <p className="text-[9px] font-black uppercase text-indigo-600">
+                                ${toDollars(t.amountCents).toFixed(2)}
+                              </p>
+                            </div>
+                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">suggestion</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <h2 className="text-2xl font-black tracking-tight">Net Balances</h2>
+                    <div className="bg-white rounded-[2.5rem] p-6 border space-y-4">
+                      {stats.balances.map(b => (
+                        <div key={b.uid} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                          <div className="min-w-0">
+                            <p className="font-bold text-xs truncate max-w-[160px]">
+                              {b.displayName || b.name} {b.uid === user.uid && '(Me)'}
+                            </p>
+                            <p className={`text-[9px] font-black uppercase ${b.netCents >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {b.netCents >= 0 ? 'Owed' : 'Owes'} ${Math.abs(toDollars(b.netCents)).toFixed(2)}
+                            </p>
+                          </div>
+                          <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">
+                            {b.netCents >= 0 ? '+' : '-'}${Math.abs(toDollars(b.netCents)).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            )}
+          </div>
+
+          {/* Invite Modal */}
+          {showInviteModal && (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
+              <div className="bg-white rounded-[3rem] p-10 max-w-md w-full modal-enter shadow-2xl">
+                <h2 className="text-3xl font-black mb-2">Invite by Email</h2>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">
+                  They must sign in with the same email to accept
+                </p>
+
+                <form onSubmit={sendInvite} className="space-y-4">
+                  <input
+                    required
+                    type="email"
+                    value={inviteEmail}
+                    onChange={e => setInviteEmail(e.target.value)}
+                    className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold"
+                    placeholder="housemate@email.com"
+                  />
+
+                  <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black shadow-xl">
+                    Create Invite
+                  </button>
+
+                  {inviteLink && (
+                    <div className="bg-slate-50 border rounded-2xl p-4 space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Invite Link</p>
+                        <button type="button" onClick={() => copyToClipboard(inviteLink)} className="text-[10px] font-black uppercase text-indigo-600 flex items-center gap-1">
+                          <span className="w-4 h-4">{Icons.link}</span> Copy
+                        </button>
+                      </div>
+                      <p className="text-xs font-bold break-all text-slate-700">{inviteLink}</p>
+                      <p className="text-[10px] font-bold text-slate-400">
+                        If email sending isn’t set up yet, copy this link and send it manually.
+                      </p>
+                    </div>
+                  )}
+
+                  <button type="button" onClick={() => { setShowInviteModal(false); setInviteLink(""); }} className="w-full text-slate-400 font-bold uppercase text-[10px]">
+                    Close
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Members Modal */}
+          {showMembersModal && (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
+              <div className="bg-white rounded-[3rem] p-10 max-w-lg w-full modal-enter shadow-2xl max-h-[90vh] overflow-y-auto">
+                <h2 className="text-3xl font-black mb-6">Members</h2>
+
+                <div className="space-y-3">
+                  {members.map(m => (
+                    <div key={m.uid} className="flex items-center justify-between bg-slate-50 border rounded-2xl p-4">
+                      <div className="min-w-0">
+                        <p className="font-black text-sm truncate">
+                          {m.displayName || m.name} {m.uid === user.uid ? "(Me)" : ""}
+                        </p>
+                        <p className="text-[10px] font-bold text-slate-400 truncate">
+                          {m.email || ""} • {m.role || "member"}
+                        </p>
+                        {m.addedByUserId && (
+                          <p className="text-[10px] font-bold text-slate-400 truncate">
+                            Invited by: {members.find(x => x.uid === m.addedByUserId)?.displayName || "Member"}
+                          </p>
+                        )}
+                      </div>
+
+                      {canRemoveMember(m) && (
+                        <button
+                          onClick={() => removeMember(m)}
+                          className="px-3 py-2 rounded-xl bg-red-50 border border-red-100 text-red-700 text-[10px] font-black uppercase"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <button type="button" onClick={() => setShowMembersModal(false)} className="w-full mt-6 text-slate-400 font-bold uppercase text-[10px]">
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Add Expense Modal */}
+          {showAddExpense && (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
+              <div className="bg-white rounded-[3.5rem] p-10 max-w-2xl w-full modal-enter shadow-2xl max-h-[90vh] overflow-y-auto">
+                <h2 className="text-3xl font-black mb-6">Add Expense</h2>
+
+                <ExpenseForm
+                  members={members}
+                  user={user}
+                  CATEGORIES={CATEGORIES}
+                  splitType={splitType}
+                  setSplitType={setSplitType}
+                  payerUid={payerUid}
+                  setPayerUid={setPayerUid}
+                  selectedParticipants={selectedParticipants}
+                  toggleParticipant={toggleParticipant}
+                  percentages={percentages}
+                  setPercentages={setPercentages}
+                  getActiveParticipants={getActiveParticipants}
+                  validatePercentages={validatePercentages}
+                  onSubmit={addExpense}
+                  onCancel={() => setShowAddExpense(false)}
+                  defaultDescription=""
+                  defaultAmount=""
+                  defaultCategory="other"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Edit Expense Modal */}
+          {showEditExpense && editExpense && (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
+              <div className="bg-white rounded-[3.5rem] p-10 max-w-2xl w-full modal-enter shadow-2xl max-h-[90vh] overflow-y-auto">
+                <h2 className="text-3xl font-black mb-6">Edit Expense</h2>
+
+                <ExpenseForm
+                  members={members}
+                  user={user}
+                  CATEGORIES={CATEGORIES}
+                  splitType={splitType}
+                  setSplitType={setSplitType}
+                  payerUid={payerUid}
+                  setPayerUid={setPayerUid}
+                  selectedParticipants={selectedParticipants}
+                  toggleParticipant={toggleParticipant}
+                  percentages={percentages}
+                  setPercentages={setPercentages}
+                  getActiveParticipants={getActiveParticipants}
+                  validatePercentages={validatePercentages}
+                  onSubmit={saveEditExpense}
+                  onCancel={() => { setShowEditExpense(false); setEditExpense(null); }}
+                  defaultDescription={editExpense.description || ""}
+                  defaultAmount={(toDollars(editExpense.amountCents || 0)).toFixed(2)}
+                  defaultCategory={editExpense.category || "other"}
+                />
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    function ExpenseForm({
+      members, user, CATEGORIES,
+      splitType, setSplitType,
+      payerUid, setPayerUid,
+      selectedParticipants, toggleParticipant,
+      percentages, setPercentages,
+      getActiveParticipants, validatePercentages,
+      onSubmit, onCancel,
+      defaultDescription, defaultAmount, defaultCategory
+    }) {
+      return (
+        <form onSubmit={onSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input name="description" required defaultValue={defaultDescription} className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold" placeholder="Description" />
+            <input name="amount" type="number" step="0.01" required defaultValue={defaultAmount} className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-black" placeholder="0.00" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <select name="category" defaultValue={defaultCategory} className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold">
+              {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+
+            <select value={payerUid} onChange={e => setPayerUid(e.target.value)} className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold">
+              {members.map(m => (
+                <option key={m.uid} value={m.uid}>{m.displayName || m.name}</option>
+              ))}
+            </select>
+
+            <select value={splitType} onChange={e => setSplitType(e.target.value)} className="w-full p-4 bg-indigo-50 border-2 rounded-2xl font-black">
+              <option value="PERCENTAGE">Percent Split</option>
+              <option value="EQUAL">Equal Split</option>
+            </select>
+          </div>
+
+          <div className="bg-slate-50 border-2 rounded-3xl p-6 space-y-4">
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Participants</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {members.map(m => (
+                <label key={m.uid} className="flex items-center gap-3 bg-white border rounded-2xl p-3">
+                  <input
+                    type="checkbox"
+                    checked={!!selectedParticipants[m.uid]}
+                    onChange={() => toggleParticipant(m.uid)}
+                  />
+                  <span className="font-black text-sm truncate">{m.displayName || m.name} {m.uid === user.uid ? "(Me)" : ""}</span>
+                </label>
+              ))}
+            </div>
+
+            {splitType === "PERCENTAGE" && (
+              <div className="pt-4 space-y-3">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Percentages (must total 100%)</p>
+                <div className="space-y-2">
+                  {members.filter(m => selectedParticipants[m.uid]).map(m => (
+                    <div key={m.uid} className="flex items-center justify-between bg-white border rounded-2xl p-3 gap-3">
+                      <span className="font-black text-sm truncate">{m.displayName || m.name}</span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="w-28 p-2 bg-slate-50 border rounded-xl font-black text-right"
+                          value={percentages[m.uid] ?? 0}
+                          onChange={e => setPercentages(prev => ({ ...prev, [m.uid]: e.target.value }))}
+                        />
+                        <span className="font-black text-slate-400">%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="text-[10px] font-black uppercase tracking-widest">
+                  Total:{" "}
+                  <span className={
+                    validatePercentages(getActiveParticipants(), percentages) ? "text-green-600" : "text-red-600"
+                  }>
+                    {getActiveParticipants().reduce((s,uid)=>s + Number(percentages[uid] || 0), 0).toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black shadow-xl">
+            Save
+          </button>
+          <button type="button" onClick={onCancel} className="w-full text-slate-400 font-bold uppercase text-[10px] mt-2">
+            Cancel
+          </button>
+        </form>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
