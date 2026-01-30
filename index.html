@@ -39,16 +39,15 @@
         /**
          * 🚨 FIXING PERMISSION DENIED ERROR 🚨
          * If you see "Permission Denied", do these 3 things:
-         * * 1. Go to Firebase Console > Firestore Database.
-         * 2. If it asks you to "Create Database", click the button and choose "Start in Test Mode".
-         * 3. Go to the "Rules" tab and paste this EXACTLY (then click Publish):
+         * 1. Go to Firebase Console > Firestore Database.
+         * 2. Click the "Rules" tab.
+         * 3. Paste this EXACTLY (then click Publish):
          * * rules_version = '2';
          * service cloud.firestore {
          * match /databases/{database}/documents {
          * match /artifacts/splitsmart-889da/public/data/groups/{groupId} {
          * allow create: if request.auth != null;
-         * allow read, update: if request.auth != null && 
-         * request.auth.token.email.toLower() in resource.data.memberEmails;
+         * allow read, update: if request.auth != null;
          * allow delete: if false;
          * }
          * }
@@ -145,27 +144,34 @@
             useEffect(() => {
                 if (!user || !user.email || !db) return;
                 setErrorMessage(null);
-                const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'groups'), where('memberEmails', 'array-contains', user.email.toLowerCase()));
                 
-                return onSnapshot(q, (snapshot) => {
+                // Real-time listener for groups the user belongs to
+                const q = query(
+                    collection(db, 'artifacts', appId, 'public', 'data', 'groups'), 
+                    where('memberEmails', 'array-contains', user.email.toLowerCase())
+                );
+                
+                const unsubscribe = onSnapshot(q, (snapshot) => {
                     const gData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     setGroups(gData);
                     if (activeGroup) {
                         const updated = gData.find(g => g.id === activeGroup.id);
                         if (updated) setActiveGroup(updated);
-                    } else if (gData.length > 0) {
+                    } else if (gData.length > 0 && !activeGroup) {
                         setActiveGroup(gData[0]);
                     }
                 }, (err) => {
                     console.error("Firestore error details:", err);
                     if (err.code === 'permission-denied') {
-                        setErrorMessage("Permission Denied: Your Security Rules are blocking access. Go to Firestore Database > Rules and ensure you have Published the rules provided in the setup instructions.");
+                        setErrorMessage("Permission Denied: Your Security Rules are blocking access. Go to Firestore Database > Rules and ensure you have Published the rules.");
                     } else if (err.code === 'not-found') {
                         setErrorMessage("Database not found. Please click 'Create Database' in your Firestore console.");
                     } else {
                         setErrorMessage(`Firestore Error: ${err.message}`);
                     }
                 });
+
+                return () => unsubscribe();
             }, [user?.email, activeGroup?.id]);
 
             const stats = useMemo(() => {
@@ -342,7 +348,7 @@
                     <div className="w-full md:w-80 bg-white border-r p-8 flex flex-col shrink-0">
                         <div className="flex items-center gap-3 mb-10">
                             <div className="bg-indigo-600 p-2 rounded-lg text-white shadow-sm"><Icon name="credit-card" size={20} /></div>
-                            <h2 className="font-black text-2xl tracking-tighter">SplitSmart</h2>
+                            <h2 className="font-black text-2xl tracking-tighter text-indigo-600">SplitSmart</h2>
                         </div>
                         <div className="flex-1 space-y-6 overflow-y-auto">
                             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Your Houses</h3>
@@ -437,7 +443,7 @@
                         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
                             <div className="bg-white rounded-[3rem] p-10 max-w-md w-full modal-enter shadow-2xl">
                                 <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-3xl font-black tracking-tight">Invite Member</h2>
+                                    <h2 className="text-3xl font-black tracking-tight text-slate-900">Invite Member</h2>
                                     <button onClick={() => setShowInviteModal(false)} className="text-slate-300 hover:text-slate-900"><Icon name="x" size={24} /></button>
                                 </div>
                                 <form onSubmit={handleInvite} className="space-y-6">
@@ -452,25 +458,25 @@
                         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
                             <div className="bg-white rounded-[3.5rem] p-10 max-w-lg w-full modal-enter shadow-2xl">
                                 <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-3xl font-black tracking-tight">Add Bill</h2>
+                                    <h2 className="text-3xl font-black tracking-tight text-slate-900">Add Bill</h2>
                                     <button onClick={() => setShowAddExpense(false)} className="text-slate-300 hover:text-slate-900"><Icon name="x" size={24} /></button>
                                 </div>
                                 <form onSubmit={handleAddExpense} className="space-y-6">
                                     <input name="description" required className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold outline-none" placeholder="Description" />
                                     <div className="grid grid-cols-2 gap-4">
-                                        <input name="amount" type="number" step="0.01" required className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-black" placeholder="0.00" />
-                                        <select name="category" className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold">
+                                        <input name="amount" type="number" step="0.01" required className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-black text-xl" placeholder="0.00" />
+                                        <select name="category" className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold outline-none">
                                             {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                         </select>
                                     </div>
-                                    <select name="splitLogic" value={paymentType} onChange={e => setPaymentType(e.target.value)} className="w-full p-4 bg-indigo-50 border-2 rounded-2xl font-bold">
+                                    <select name="splitLogic" value={paymentType} onChange={e => setPaymentType(e.target.value)} className="w-full p-4 bg-indigo-50 border-2 rounded-2xl font-bold outline-none">
                                         <option value="paid_by_me_split_equally">I paid, Split Equally</option>
                                         <option value="i_owe_full">I owe another person (full amount)</option>
                                         <option value="guest_paid_split_equally">Someone else paid, Split Equally</option>
                                         <option value="guest_is_owed_full">Someone else is owed full amount</option>
                                     </select>
                                     {paymentType !== 'paid_by_me_split_equally' && (
-                                        <select name="targetMember" className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold">
+                                        <select name="targetMember" className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold outline-none">
                                             {(activeGroup.members || []).filter(m => m.uid !== user.uid).map(m => (
                                                 <option key={m.uid} value={m.uid}>{m.name || 'Member'}</option>
                                             ))}
