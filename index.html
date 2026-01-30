@@ -69,16 +69,16 @@
     } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
     // ==========================================
-    // Firebase Config
+    // Firebase Config - REPLACE WITH YOUR NEW PROJECT'S CONFIG
     // ==========================================
     const firebaseConfig = {
-      apiKey: "AIzaSyAg5PYPLSBIOlIwTypFkNf8BRGgnIS3FXY",
-      authDomain: "splitsmart-889da.firebaseapp.com",
-      projectId: "splitsmart-889da",
-      storageBucket: "splitsmart-889da.firebasestorage.app",
-      messagingSenderId: "265383787810",
-      appId: "1:265383787810:web:de28c8f28ce1fd9a9bf97b",
-      measurementId: "G-ZN3B2YLXVT"
+      apiKey: "YOUR_NEW_API_KEY",
+      authDomain: "YOUR_NEW_PROJECT.firebaseapp.com",
+      projectId: "YOUR_NEW_PROJECT_ID",
+      storageBucket: "YOUR_NEW_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_NEW_SENDER_ID",
+      appId: "YOUR_NEW_APP_ID",
+      measurementId: "YOUR_NEW_MEASUREMENT_ID"
     };
 
     const app = initializeApp(firebaseConfig);
@@ -561,19 +561,17 @@
                       className={`w-full text-left p-4 pr-16 rounded-2xl font-black text-sm transition-all ${activeGroupId === g.id ? 'bg-indigo-600 text-white shadow-md' : 'hover:bg-slate-50 text-slate-600'}`}>
                       {g.name}
                     </button>
-                    {activeGroupId === g.id && (
-                      <div className="absolute right-3 top-3.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => {
-                          const n = prompt("Rename Category:", g.name);
-                          if(n) renameCategory(g.id, n);
-                        }} className="p-1 hover:bg-white/20 rounded-md">
-                          <span className="w-3.5 h-3.5 block">{Icons.pencil}</span>
-                        </button>
-                        <button onClick={() => deleteCategory(g.id)} className="p-1 hover:bg-white/20 rounded-md">
-                          <span className="w-3.5 h-3.5 block">{Icons.trash}</span>
-                        </button>
-                      </div>
-                    )}
+                    <div className="absolute right-3 top-3.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => {
+                        const n = prompt("Rename Category:", g.name);
+                        if(n) renameCategory(g.id, n);
+                      }} className="p-1 hover:bg-white/20 rounded-md">
+                        <span className="w-3.5 h-3.5 block">{Icons.pencil}</span>
+                      </button>
+                      <button onClick={() => deleteCategory(g.id)} className="p-1 hover:bg-white/20 rounded-md">
+                        <span className="w-3.5 h-3.5 block">{Icons.trash}</span>
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
