@@ -3,15 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>SplitSmart</title>
+  <title>SplitSmart - House Expenses</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-  <!-- QR generator -->
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
@@ -37,7 +34,7 @@
       getFirestore,
       collection, doc, addDoc, setDoc, updateDoc, deleteDoc,
       onSnapshot, query, where, orderBy, serverTimestamp,
-      arrayUnion, arrayRemove, getDoc, limit
+      arrayUnion, getDoc, getDocs, limit
     } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
     // =========================
@@ -59,24 +56,24 @@
 
     const { useEffect, useMemo, useState } = React;
 
-    // IMPORTANT: your GitHub Pages base URL (MUST match your repo path)
-    const BASE_URL = "https://01ananto.github.io/SplitSmart/";
-
-    // Invite expires (days)
-    const INVITE_EXPIRES_DAYS = 14;
+    // =========================
+    // Optional: Cloud Function for email sending
+    // =========================
+    // You will deploy a function named "sendInviteEmail" and paste the URL here.
+    // If you leave it blank, the app will fallback to "mailto:".
+    const SEND_INVITE_EMAIL_FUNCTION_URL = ""; // e.g. https://us-central1-YOUR_PROJECT.cloudfunctions.net/sendInviteEmail
 
     // =========================
-    // Icons (inline)
+    // UI constants
     // =========================
     const Icons = {
       receipt: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="16" height="20" x="4" y="2" rx="2"></rect><line x1="8" x2="16" y1="6" y2="6"></line><line x1="8" x2="16" y1="10" y2="10"></line><line x1="8" x2="12" y1="14" y2="14"></line></svg>,
       userPlus: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" x2="19" y1="8" y2="14"></line><line x1="16" x2="22" y1="11" y2="11"></line></svg>,
-      users: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-3-3.87"></path><path d="M7 21v-2a4 4 0 0 1 4-4h0a4 4 0 0 1 4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>,
+      settle: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>,
       pencil: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z"></path></svg>,
       trash: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path></svg>,
+      users: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-3-3.87"></path><path d="M7 21v-2a4 4 0 0 1 4-4h0a4 4 0 0 1 4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>,
       link: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 1 0-7l1-1a5 5 0 0 1 7 7l-1 1"></path><path d="M14 11a5 5 0 0 1 0 7l-1 1a5 5 0 0 1-7-7l1-1"></path></svg>,
-      key: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 2l-2 2m-2 2l-2 2m2-2l2 2m-2-2l-6 6"></path><circle cx="7" cy="17" r="3"></circle></svg>,
-      qr: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3z"></path><path d="M14 14h3v3h-3zM17 17h4v4h-4z"></path></svg>,
     };
 
     const CATEGORIES = [
@@ -88,7 +85,7 @@
     ];
 
     // =========================
-    // Helpers (money)
+    // Helpers (money + math)
     // =========================
     const toCents = (val) => {
       const n = Number(val);
@@ -97,33 +94,13 @@
     };
     const toDollars = (cents) => (cents / 100);
 
-    // =========================
-    // Helpers (invite code)
-    // =========================
-    const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-
-    function generateHardCode(len = 10) {
-      const buf = new Uint8Array(len);
-      crypto.getRandomValues(buf);
-      let out = "";
-      for (let i = 0; i < len; i++) {
-        out += CODE_CHARS[buf[i] % CODE_CHARS.length];
-      }
-      return out.slice(0,4) + "-" + out.slice(4,8) + "-" + out.slice(8);
-    }
-
-    function nowMs() { return Date.now(); }
-
-    // =========================
-    // Balances + Simplify debts
-    // =========================
     function distributeRounding(amountCents, owedMapCents, percentages) {
       const sum = Object.values(owedMapCents).reduce((a,b)=>a+b,0);
       let remainder = amountCents - sum;
       if (remainder === 0) return owedMapCents;
 
       const entries = Object.entries(percentages || {});
-      entries.sort((a,b) => (Number(b[1] ?? 0)) - (Number(a[1] ?? 0)));
+      entries.sort((a,b) => (b[1] ?? 0) - (a[1] ?? 0));
       const targetUid = entries[0]?.[0] || Object.keys(owedMapCents)[0];
 
       const fixed = { ...owedMapCents };
@@ -131,10 +108,11 @@
       return fixed;
     }
 
-    function computeNetBalances(members, expenses) {
+    function computeNetBalances(members, expenses, payments) {
       const net = {};
       members.forEach(m => { net[m.uid] = 0; });
 
+      // Expenses
       for (const exp of expenses) {
         const amountCents = exp.amountCents || 0;
         const paidBy = exp.paidByUserId;
@@ -154,6 +132,7 @@
             if (net[uid] !== undefined) net[uid] -= (owed[uid] || 0);
           }
         } else {
+          // Equal
           const count = participants.length || 0;
           if (count > 0) {
             const base = Math.floor(amountCents / count);
@@ -167,6 +146,14 @@
           }
         }
       }
+
+      // Payments (optional) reduce debts
+      for (const p of payments) {
+        const amt = p.amountCents || 0;
+        if (net[p.fromUserId] !== undefined) net[p.fromUserId] += amt;
+        if (net[p.toUserId] !== undefined) net[p.toUserId] -= amt;
+      }
+
       return net;
     }
 
@@ -210,29 +197,26 @@
 
       const [members, setMembers] = useState([]);
       const [expenses, setExpenses] = useState([]);
+      const [payments, setPayments] = useState([]);
+
+      const [pendingInvites, setPendingInvites] = useState([]);
 
       const [newGroupName, setNewGroupName] = useState("");
 
       const [showInviteModal, setShowInviteModal] = useState(false);
       const [showMembersModal, setShowMembersModal] = useState(false);
-      const [showJoinCodeModal, setShowJoinCodeModal] = useState(false);
-
+      const [inviteEmail, setInviteEmail] = useState("");
       const [inviteLink, setInviteLink] = useState("");
-      const [inviteCode, setInviteCode] = useState("");
-      const [inviteQrDataUrl, setInviteQrDataUrl] = useState("");
 
       const [showAddExpense, setShowAddExpense] = useState(false);
       const [showEditExpense, setShowEditExpense] = useState(false);
       const [editExpense, setEditExpense] = useState(null);
 
-      // expense state
-      const [splitType, setSplitType] = useState("PERCENTAGE");
+      // Add/Edit expense state
+      const [splitType, setSplitType] = useState("PERCENTAGE"); // PERCENTAGE or EQUAL
       const [payerUid, setPayerUid] = useState("");
       const [selectedParticipants, setSelectedParticipants] = useState({});
-      const [percentages, setPercentages] = useState({});
-
-      // join code input
-      const [joinCodeInput, setJoinCodeInput] = useState("");
+      const [percentages, setPercentages] = useState({}); // {uid: number}
 
       // -------- Auth --------
       useEffect(() => {
@@ -256,7 +240,8 @@
             }
           } else {
             setGroups([]); setActiveGroupId(null); setActiveGroup(null);
-            setMembers([]); setExpenses([]);
+            setMembers([]); setExpenses([]); setPayments([]);
+            setPendingInvites([]); setInviteLink("");
           }
         });
         return () => unsub();
@@ -264,32 +249,6 @@
 
       const handleLogin = () =>
         signInWithPopup(auth, new GoogleAuthProvider()).catch((e) => setErrorMessage(e.message));
-
-      const notify = (msg) => {
-        setToast(msg);
-        setTimeout(() => setToast(null), 1400);
-      };
-
-      const copyToClipboard = async (text) => {
-        try {
-          await navigator.clipboard.writeText(text);
-          notify("Copied!");
-        } catch {
-          notify("Copy failed");
-        }
-      };
-
-      const shareLink = async (text) => {
-        try {
-          if (navigator.share) {
-            await navigator.share({ title: "SplitSmart Invite", text: "Join my SplitSmart group", url: text });
-          } else {
-            await copyToClipboard(text);
-          }
-        } catch {
-          // user cancelled share, ignore
-        }
-      };
 
       // -------- Groups listener --------
       useEffect(() => {
@@ -307,14 +266,14 @@
         }, (err) => {
           console.error(err);
           setErrorMessage(err.code === "permission-denied"
-            ? "Permission denied. Publish Firestore rules."
+            ? "Permission denied. Publish Firestore rules (see rules below)."
             : err.message);
         });
 
         return () => unsub();
       }, [user?.uid, activeGroupId]);
 
-      // -------- Active group --------
+      // -------- Active group doc listener --------
       useEffect(() => {
         if (!activeGroupId) return;
         const unsub = onSnapshot(doc(db, "groups", activeGroupId), (snap) => {
@@ -324,7 +283,7 @@
         return () => unsub();
       }, [activeGroupId]);
 
-      // -------- Members --------
+      // -------- Members listener --------
       useEffect(() => {
         if (!user?.uid || !activeGroupId) return;
         const q = query(collection(db, "groups", activeGroupId, "members"));
@@ -334,12 +293,12 @@
 
           if (!payerUid) setPayerUid(user.uid);
 
-          // default participants: all
+          // default participants: all members checked
           const defaults = {};
           list.forEach(m => { defaults[m.uid] = true; });
           setSelectedParticipants(prev => Object.keys(prev).length ? prev : defaults);
 
-          // default pct: equal
+          // default percentages: equal among all selected
           setPercentages(prev => {
             if (Object.keys(prev).length) return prev;
             const count = list.length || 1;
@@ -351,7 +310,7 @@
         return () => unsub();
       }, [user?.uid, activeGroupId]);
 
-      // -------- Expenses --------
+      // -------- Expenses listener --------
       useEffect(() => {
         if (!user?.uid || !activeGroupId) return;
         const q = query(collection(db, "groups", activeGroupId, "expenses"), orderBy("date", "desc"), limit(200));
@@ -361,9 +320,46 @@
         return () => unsub();
       }, [user?.uid, activeGroupId]);
 
-      // -------- URL Invite Auto-Join (?group=...&invite=...) --------
+      // -------- Payments listener (optional) --------
       useEffect(() => {
-        if (!user?.uid) return;
+        if (!user?.uid || !activeGroupId) return;
+        const q = query(collection(db, "groups", activeGroupId, "payments"), orderBy("date", "desc"), limit(200));
+        const unsub = onSnapshot(q, (snap) => {
+          setPayments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+        return () => unsub();
+      }, [user?.uid, activeGroupId]);
+
+      // -------- Pending invites (scan groups user is already in; plus invite link auto-accept) --------
+      useEffect(() => {
+        if (!user?.email) return;
+        const email = user.email.toLowerCase();
+
+        const unsubs = [];
+        const collected = new Map();
+
+        groups.forEach(g => {
+          const invQ = query(
+            collection(db, "groups", g.id, "invites"),
+            where("targetEmail", "==", email),
+            where("status", "==", "pending")
+          );
+          const unsub = onSnapshot(invQ, (snap) => {
+            for (const [k,v] of collected.entries()) {
+              if (v.groupId === g.id) collected.delete(k);
+            }
+            snap.docs.forEach(d => collected.set(d.id, { id: d.id, groupId: g.id, ...d.data(), groupName: g.name }));
+            setPendingInvites(Array.from(collected.values()));
+          });
+          unsubs.push(unsub);
+        });
+
+        return () => unsubs.forEach(u => u());
+      }, [groups, user?.email]);
+
+      // -------- Auto-accept invite from URL params (?group=...&invite=...) --------
+      useEffect(() => {
+        if (!user?.uid || !user?.email) return;
 
         const params = new URLSearchParams(window.location.search);
         const groupId = params.get("group");
@@ -377,37 +373,49 @@
             if (!invSnap.exists()) return;
 
             const inv = invSnap.data();
-            if (inv.status !== "pending") return;
-
-            if (inv.expiresAtMs && nowMs() > inv.expiresAtMs) {
-              setErrorMessage("Invite expired.");
+            const email = user.email.toLowerCase();
+            if ((inv.targetEmail || "").toLowerCase() !== email) {
+              setToast("Invite email does not match your Google login email.");
               return;
             }
+            if (inv.status !== "pending") return;
 
-            await acceptInvite(groupId, inviteId);
+            await acceptInvite({ id: inviteId, groupId, ...inv });
 
+            // clean URL
             window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
           } catch (e) {
             console.error(e);
             setErrorMessage(e.message);
           }
         })();
-      }, [user?.uid]);
+      }, [user?.uid, user?.email]);
 
-      // -------- Stats --------
+      // -------- Computed stats --------
       const stats = useMemo(() => {
-        const totalCents = expenses.reduce((s,t) => s + (t.amountCents || 0), 0);
-        const net = computeNetBalances(members, expenses);
-        const memberMap = new Map(members.map(m => [m.uid, m]));
-        const transfers = simplifyDebts(net).map(t => ({
-          ...t,
-          fromName: memberMap.get(t.fromUserId)?.displayName || "Member",
-          toName: memberMap.get(t.toUserId)?.displayName || "Member"
-        }));
-        const balances = members.map(m => ({ ...m, netCents: net[m.uid] || 0 }));
-        return { totalCents, balances, transfers };
-      }, [members, expenses]);
+        if (!user?.uid || !activeGroupId) return { totalCents: 0, perPersonCents: 0, balances: [], transfers: [] };
 
+        const totalCents = expenses.reduce((s,t) => s + (t.amountCents || 0), 0);
+
+        const memberMap = new Map(members.map(m => [m.uid, m]));
+        const net = computeNetBalances(members, expenses, payments);
+
+        const balances = members.map(m => ({ ...m, netCents: net[m.uid] || 0 }));
+
+        const transfers = simplifyDebts(net).map(tr => ({
+          ...tr,
+          fromName: memberMap.get(tr.fromUserId)?.displayName || memberMap.get(tr.fromUserId)?.name || "Member",
+          toName: memberMap.get(tr.toUserId)?.displayName || memberMap.get(tr.toUserId)?.name || "Member"
+        }));
+
+        const perPersonCents = members.length ? Math.round(totalCents / members.length) : 0;
+
+        return { totalCents, perPersonCents, balances, transfers };
+      }, [expenses, payments, members, user?.uid, activeGroupId]);
+
+      // =========================
+      // Permissions
+      // =========================
       const isOwner = !!(activeGroup && user && activeGroup.ownerId === user.uid);
 
       const canEditExpense = (exp) => {
@@ -415,14 +423,16 @@
         return isOwner || exp.createdByUserId === user.uid;
       };
 
+      // Inviter-only member removal:
+      // member.addedByUserId is set from invite.invitedByUserId when accepted.
       const canRemoveMember = (member) => {
         if (!user || !member) return false;
-        if (member.uid === user.uid) return false;
+        if (member.uid === user.uid) return false; // don't remove yourself here
         return isOwner || member.addedByUserId === user.uid;
       };
 
       // =========================
-      // Group actions
+      // Actions
       // =========================
       const createGroup = async () => {
         if (!newGroupName.trim() || !user?.uid || !user?.email) return;
@@ -432,6 +442,7 @@
             name: newGroupName.trim(),
             ownerId: user.uid,
             memberIds: [user.uid],
+            memberEmails: [user.email.toLowerCase()],
             createdAt: serverTimestamp()
           });
 
@@ -451,157 +462,136 @@
         }
       };
 
-      // =========================
-      // Invite actions (Link + QR + Code)
-      // =========================
-      const createInvite = async () => {
-        if (!activeGroupId || !user?.uid) return;
+      const copyToClipboard = async (text) => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setToast("Copied!");
+          setTimeout(() => setToast(null), 1200);
+        } catch {
+          setToast("Copy failed");
+          setTimeout(() => setToast(null), 1200);
+        }
+      };
+
+      const sendInvite = async (e) => {
+        e.preventDefault();
+        if (!activeGroupId || !inviteEmail.trim() || !user?.uid) return;
         setErrorMessage(null);
+        const email = inviteEmail.toLowerCase().trim();
 
         try {
-          const code = generateHardCode(10);
-          const expiresAtMs = nowMs() + INVITE_EXPIRES_DAYS * 24 * 60 * 60 * 1000;
-
-          // Create invite doc under group
-          const invRef = await addDoc(collection(db, "groups", activeGroupId, "invites"), {
+          const inviteRef = await addDoc(collection(db, "groups", activeGroupId, "invites"), {
+            targetEmail: email,
             invitedByUserId: user.uid,
             status: "pending",
-            code,
-            expiresAtMs,
             createdAt: serverTimestamp()
           });
 
-          // Create joinCodes/{CODE}
-          const normalizedCode = code.toUpperCase();
-          await setDoc(doc(db, "joinCodes", normalizedCode), {
-            groupId: activeGroupId,
-            inviteId: invRef.id,
-            status: "pending",
-            expiresAtMs,
-            createdAt: serverTimestamp(),
-            createdByUserId: user.uid
-          });
-
-          const link = `${BASE_URL}?group=${encodeURIComponent(activeGroupId)}&invite=${encodeURIComponent(invRef.id)}`;
+          // Build an invite link that works with GitHub Pages repo path
+          const base = "https://01ananto.github.io/SplitSmart/";
+          const link = `${base}?group=${encodeURIComponent(activeGroupId)}&invite=${encodeURIComponent(inviteRef.id)}`;
           setInviteLink(link);
-          setInviteCode(normalizedCode);
 
-          // ✅ QR: use whichever global exists (QRCode from CDN)
-          try {
-            const QR = (window.QRCode && window.QRCode.toDataURL) ? window.QRCode : (window.qrcode && window.qrcode.toDataURL ? window.qrcode : window.QRCode);
-            if (QR && QR.toDataURL) {
-              const url = await QR.toDataURL(link, { margin: 1, width: 220 });
-              setInviteQrDataUrl(url);
-            } else {
-              console.warn("QR library not found on window (QRCode).");
-              setInviteQrDataUrl("");
-            }
-          } catch (e) {
-            console.error("QR failed:", e);
-            setInviteQrDataUrl("");
+          // Try real email sending via Cloud Function, else fallback to mailto
+          const groupName = activeGroup?.name || "SplitSmart Group";
+
+          if (SEND_INVITE_EMAIL_FUNCTION_URL) {
+            await fetch(SEND_INVITE_EMAIL_FUNCTION_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                toEmail: email,
+                groupName,
+                inviteLink: link,
+                inviterName: user.displayName || "Someone"
+              })
+            });
+            setToast("Invite email sent!");
+            setTimeout(() => setToast(null), 1400);
+          } else {
+            // fallback mailto (not automatic send)
+            window.location.href =
+              `mailto:${email}?subject=Join SplitSmart&body=You were invited to join "${groupName}".%0A%0AClick to join: ${encodeURIComponent(link)}%0A%0ASign in with Google using: ${email}`;
           }
 
-          notify("Invite created");
+          setInviteEmail("");
         } catch (e) {
           console.error(e);
           setErrorMessage(e.message);
         }
       };
 
-      const acceptInvite = async (groupId, inviteId) => {
+      const acceptInvite = async (invite) => {
         if (!user?.uid || !user?.email) return;
         setErrorMessage(null);
 
-        const groupRef = doc(db, "groups", groupId);
-        const invRef = doc(db, "groups", groupId, "invites", inviteId);
+        try {
+          const groupRef = doc(db, "groups", invite.groupId);
+          const groupSnap = await getDoc(groupRef);
+          if (!groupSnap.exists()) throw new Error("Group not found.");
 
-        const invSnap = await getDoc(invRef);
-        if (!invSnap.exists()) throw new Error("Invite not found.");
-        const inv = invSnap.data();
+          await updateDoc(groupRef, {
+            memberIds: arrayUnion(user.uid),
+            memberEmails: arrayUnion(user.email.toLowerCase())
+          });
 
-        if (inv.status !== "pending") throw new Error("Invite already used.");
-        if (inv.expiresAtMs && nowMs() > inv.expiresAtMs) throw new Error("Invite expired.");
+          // IMPORTANT: store addedByUserId = inviter, so inviter-only removal works
+          await setDoc(doc(db, "groups", invite.groupId, "members", user.uid), {
+            displayName: user.displayName || "User",
+            email: user.email.toLowerCase(),
+            role: "member",
+            joinedAt: serverTimestamp(),
+            addedByUserId: invite.invitedByUserId || null
+          }, { merge: true });
 
-        // Add to group
-        await updateDoc(groupRef, {
-          memberIds: arrayUnion(user.uid)
-        });
+          await updateDoc(doc(db, "groups", invite.groupId, "invites", invite.id), {
+            status: "accepted"
+          });
 
-        // Create member doc
-        await setDoc(doc(db, "groups", groupId, "members", user.uid), {
-          displayName: user.displayName || "User",
-          email: user.email.toLowerCase(),
-          role: "member",
-          joinedAt: serverTimestamp(),
-          addedByUserId: inv.invitedByUserId || null
-        }, { merge: true });
-
-        // Mark invite accepted
-        await updateDoc(invRef, { status: "accepted", acceptedByUserId: user.uid });
-
-        // Mark joinCode used (best effort)
-        if (inv.code) {
-          const joinRef = doc(db, "joinCodes", String(inv.code).toUpperCase());
-          const joinSnap = await getDoc(joinRef);
-          if (joinSnap.exists()) await updateDoc(joinRef, { status: "accepted", acceptedByUserId: user.uid });
+          setActiveGroupId(invite.groupId);
+          setToast("Invite accepted!");
+          setTimeout(() => setToast(null), 1400);
+        } catch (e) {
+          console.error(e);
+          setErrorMessage(e.message);
         }
-
-        setActiveGroupId(groupId);
-        notify("Joined!");
       };
 
-      // ✅ FIXED: Join Code now switches UI immediately (no refresh)
-      const joinWithCode = async (e) => {
-        e.preventDefault();
-        if (!user?.uid) return;
-
-        const raw = String(joinCodeInput || "").trim().toUpperCase();
-        if (!raw) return;
-
+      const declineInvite = async (invite) => {
         try {
-          setErrorMessage(null);
-
-          const joinRef = doc(db, "joinCodes", raw);
-          const joinSnap = await getDoc(joinRef);
-          if (!joinSnap.exists()) return setErrorMessage("Invalid code.");
-
-          const data = joinSnap.data();
-          if (data.status !== "pending") return setErrorMessage("This code was already used.");
-          if (data.expiresAtMs && Date.now() > data.expiresAtMs) return setErrorMessage("Code expired.");
-
-          await acceptInvite(data.groupId, data.inviteId);
-
-          // 🔥 This line fixes the “nothing happens until refresh”
-          setActiveGroupId(data.groupId);
-
-          setShowJoinCodeModal(false);
-          setJoinCodeInput("");
-          notify("Joined!");
-        } catch (e2) {
-          console.error(e2);
-          setErrorMessage(e2.message);
+          await updateDoc(doc(db, "groups", invite.groupId, "invites", invite.id), { status: "declined" });
+        } catch (e) {
+          console.error(e);
+          setErrorMessage(e.message);
         }
       };
 
       const removeMember = async (member) => {
         if (!activeGroupId || !member?.uid) return;
-        if (!canRemoveMember(member)) return setErrorMessage("You don't have permission to remove this member.");
+        if (!canRemoveMember(member)) {
+          setErrorMessage("You don't have permission to remove this member.");
+          return;
+        }
 
         try {
+          // Remove member doc
           await deleteDoc(doc(db, "groups", activeGroupId, "members", member.uid));
+
+          // Remove from group arrays (best effort)
+          // Note: arrayRemove needs exact string match; ok for uid/email.
           await updateDoc(doc(db, "groups", activeGroupId), {
-            memberIds: arrayRemove(member.uid)
+            memberIds: activeGroup?.memberIds ? activeGroup.memberIds.filter(x => x !== member.uid) : [],
+            memberEmails: activeGroup?.memberEmails ? activeGroup.memberEmails.filter(x => x !== (member.email || "")) : []
           });
-          notify("Member removed");
+
+          setToast("Member removed");
+          setTimeout(() => setToast(null), 1400);
         } catch (e) {
           console.error(e);
           setErrorMessage(e.message);
         }
       };
 
-      // =========================
-      // Expense helpers
-      // =========================
       const toggleParticipant = (uid) => setSelectedParticipants(prev => ({ ...prev, [uid]: !prev[uid] }));
 
       const getActiveParticipants = () =>
@@ -646,17 +636,14 @@
           const pct = {};
           participants.forEach(uid => { pct[uid] = Number(percentages[uid] || 0); });
           exp.percentages = pct;
-        } else {
-          exp.percentages = {};
         }
 
         try {
           await addDoc(collection(db, "groups", activeGroupId, "expenses"), exp);
           setShowAddExpense(false);
-          notify("Saved");
-        } catch (e2) {
-          console.error(e2);
-          setErrorMessage(e2.message);
+        } catch (e) {
+          console.error(e);
+          setErrorMessage(e.message);
         }
       };
 
@@ -664,11 +651,13 @@
         setEditExpense(exp);
         setShowEditExpense(true);
 
+        // prefill modal state
         setSplitType(exp.splitType || "PERCENTAGE");
         setPayerUid(exp.paidByUserId || user.uid);
 
         const sel = {};
         (exp.participants || []).forEach(uid => { sel[uid] = true; });
+        // keep others unchecked
         members.forEach(m => { if (sel[m.uid] === undefined) sel[m.uid] = false; });
         setSelectedParticipants(sel);
 
@@ -710,17 +699,18 @@
           participants.forEach(uid => { pct[uid] = Number(percentages[uid] || 0); });
           patch.percentages = pct;
         } else {
-          patch.percentages = {};
+          patch.percentages = {}; // clear
         }
 
         try {
           await updateDoc(doc(db, "groups", activeGroupId, "expenses", editExpense.id), patch);
           setShowEditExpense(false);
           setEditExpense(null);
-          notify("Updated");
-        } catch (e2) {
-          console.error(e2);
-          setErrorMessage(e2.message);
+          setToast("Expense updated");
+          setTimeout(() => setToast(null), 1200);
+        } catch (e) {
+          console.error(e);
+          setErrorMessage(e.message);
         }
       };
 
@@ -731,10 +721,11 @@
 
         try {
           await deleteDoc(doc(db, "groups", activeGroupId, "expenses", exp.id));
-          notify("Deleted");
-        } catch (e2) {
-          console.error(e2);
-          setErrorMessage(e2.message);
+          setToast("Deleted");
+          setTimeout(() => setToast(null), 1200);
+        } catch (e) {
+          console.error(e);
+          setErrorMessage(e.message);
         }
       };
 
@@ -754,32 +745,15 @@
               <button onClick={handleLogin} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-lg hover:bg-slate-800 transition-all flex items-center justify-center gap-3">
                 <img src="https://www.google.com/favicon.ico" className="w-5 h-5 invert" /> Continue with Google
               </button>
-              <button
-                onClick={() => setShowJoinCodeModal(true)}
-                className="w-full py-4 bg-white border-2 rounded-2xl font-black text-slate-800 hover:bg-slate-50"
-              >
-                Join with Code
-              </button>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                If you have an invite link or code, open it then sign in.
+                If you have an invite link, open it then sign in.
               </p>
             </div>
-
-            {showJoinCodeModal && (
-              <JoinCodeModal
-                Icons={Icons}
-                joinCodeInput={joinCodeInput}
-                setJoinCodeInput={setJoinCodeInput}
-                onClose={() => setShowJoinCodeModal(false)}
-                onJoin={joinWithCode}
-              />
-            )}
           </div>
         );
       }
 
       const myNet = stats.balances.find(b => b.uid === user.uid)?.netCents || 0;
-      const isOwed = myNet >= 0;
 
       return (
         <div className="min-h-screen flex flex-col md:flex-row">
@@ -787,14 +761,26 @@
           <div className="w-full md:w-80 bg-white border-r p-8 flex flex-col shrink-0">
             <h2 className="font-black text-2xl text-indigo-600 mb-6 tracking-tighter">SplitSmart</h2>
 
-            <div className="flex gap-2 mb-6">
-              <button
-                onClick={() => setShowJoinCodeModal(true)}
-                className="flex-1 bg-white border-2 px-3 py-3 rounded-2xl font-black text-[11px] hover:bg-slate-50 flex items-center justify-center gap-2"
-              >
-                <span className="w-4 h-4">{Icons.key}</span> Join Code
-              </button>
-            </div>
+            {/* Pending Invites */}
+            {pendingInvites.length > 0 && (
+              <div className="mb-6 bg-indigo-50 border border-indigo-100 rounded-3xl p-4">
+                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-3">Pending Invites</p>
+                <div className="space-y-2">
+                  {pendingInvites.map(inv => (
+                    <div key={inv.id} className="bg-white rounded-2xl p-3 border flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-black text-xs truncate">{inv.groupName || "Group"}</p>
+                        <p className="text-[10px] font-bold text-slate-400 truncate">{inv.targetEmail}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => acceptInvite(inv)} className="px-3 py-1 rounded-xl bg-indigo-600 text-white text-[10px] font-black">Accept</button>
+                        <button onClick={() => declineInvite(inv)} className="px-3 py-1 rounded-xl bg-slate-100 text-slate-700 text-[10px] font-black">No</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex-1 space-y-6 overflow-y-auto">
               <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Houses</h3>
@@ -863,10 +849,7 @@
                       <span className="w-4 h-4">{Icons.users}</span> Members
                     </button>
 
-                    <button
-                      onClick={async () => { setShowInviteModal(true); await createInvite(); }}
-                      className="bg-white border-2 px-6 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-slate-50"
-                    >
+                    <button onClick={() => setShowInviteModal(true)} className="bg-white border-2 px-6 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-slate-50">
                       <span className="w-4 h-4">{Icons.userPlus}</span> Invite
                     </button>
 
@@ -881,19 +864,15 @@
                     <p className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Spent</p>
                     <h3 className="text-4xl font-black">${toDollars(stats.totalCents).toFixed(2)}</h3>
                   </div>
-
-                  <div className={`p-10 rounded-[3rem] border shadow-sm ${isOwed ? 'bg-green-50' : 'bg-red-50'}`}>
+                  <div className="bg-white p-10 rounded-[3rem] border shadow-sm">
+                    <p className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Average</p>
+                    <h3 className="text-4xl font-black">${toDollars(stats.perPersonCents).toFixed(2)}</h3>
+                  </div>
+                  <div className={`p-10 rounded-[3rem] border shadow-sm ${myNet >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
                     <p className="text-[10px] font-black uppercase mb-4 opacity-60 tracking-widest">Your Net</p>
                     <h3 className="text-4xl font-black">${Math.abs(toDollars(myNet)).toFixed(2)}</h3>
                     <p className="text-[10px] font-bold mt-2 opacity-70 uppercase tracking-widest">
-                      {isOwed ? "You are owed" : "You owe"}
-                    </p>
-                  </div>
-
-                  <div className="bg-white p-10 rounded-[3rem] border shadow-sm">
-                    <p className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Suggested Settle</p>
-                    <p className="text-xs font-bold text-slate-400 uppercase">
-                      {stats.transfers.length ? "See Simplified Debts" : "All settled"}
+                      {myNet >= 0 ? "You are owed" : "You owe"}
                     </p>
                   </div>
                 </div>
@@ -1006,63 +985,45 @@
           {/* Invite Modal */}
           {showInviteModal && (
             <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
-              <div className="bg-white rounded-[3rem] p-10 max-w-lg w-full modal-enter shadow-2xl">
-                <h2 className="text-3xl font-black mb-2">Invite (Free)</h2>
+              <div className="bg-white rounded-[3rem] p-10 max-w-md w-full modal-enter shadow-2xl">
+                <h2 className="text-3xl font-black mb-2">Invite by Email</h2>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">
-                  Share link • QR • or code (no email needed)
+                  They must sign in with the same email to accept
                 </p>
 
-                <div className="space-y-4">
-                  <div className="bg-slate-50 border rounded-2xl p-4 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Invite Link</p>
-                      <div className="flex gap-2">
-                        <button onClick={() => shareLink(inviteLink)} className="text-[10px] font-black uppercase text-indigo-600">Share</button>
-                        <button onClick={() => copyToClipboard(inviteLink)} className="text-[10px] font-black uppercase text-indigo-600 flex items-center gap-1">
+                <form onSubmit={sendInvite} className="space-y-4">
+                  <input
+                    required
+                    type="email"
+                    value={inviteEmail}
+                    onChange={e => setInviteEmail(e.target.value)}
+                    className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold"
+                    placeholder="housemate@email.com"
+                  />
+
+                  <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black shadow-xl">
+                    Create Invite
+                  </button>
+
+                  {inviteLink && (
+                    <div className="bg-slate-50 border rounded-2xl p-4 space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Invite Link</p>
+                        <button type="button" onClick={() => copyToClipboard(inviteLink)} className="text-[10px] font-black uppercase text-indigo-600 flex items-center gap-1">
                           <span className="w-4 h-4">{Icons.link}</span> Copy
                         </button>
                       </div>
+                      <p className="text-xs font-bold break-all text-slate-700">{inviteLink}</p>
+                      <p className="text-[10px] font-bold text-slate-400">
+                        If email sending isn’t set up yet, copy this link and send it manually.
+                      </p>
                     </div>
-                    <p className="text-xs font-bold break-all text-slate-700">{inviteLink || "Creating..."}</p>
-                  </div>
+                  )}
 
-                  <div className="bg-slate-50 border rounded-2xl p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Join Code</p>
-                      <button onClick={() => copyToClipboard(inviteCode)} className="text-[10px] font-black uppercase text-indigo-600 flex items-center gap-1">
-                        <span className="w-4 h-4">{Icons.key}</span> Copy
-                      </button>
-                    </div>
-                    <p className="text-lg font-black tracking-widest text-slate-800">{inviteCode || "Creating..."}</p>
-                    <p className="text-[10px] font-bold text-slate-400">They can click “Join Code” and paste this.</p>
-                  </div>
-
-                  <div className="bg-slate-50 border rounded-2xl p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">QR Code</p>
-                      <span className="w-4 h-4 text-slate-500">{Icons.qr}</span>
-                    </div>
-
-                    {inviteQrDataUrl ? (
-                      <div className="flex items-center justify-center">
-                        <img src={inviteQrDataUrl} alt="Invite QR" className="rounded-2xl border bg-white p-2" />
-                      </div>
-                    ) : (
-                      <div className="text-center text-slate-400 text-xs font-bold">QR not available (check console)</div>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={async () => { await createInvite(); }}
-                    className="w-full py-4 bg-white border-2 rounded-2xl font-black hover:bg-slate-50"
-                  >
-                    Create New Invite
-                  </button>
-
-                  <button type="button" onClick={() => { setShowInviteModal(false); }} className="w-full text-slate-400 font-bold uppercase text-[10px]">
+                  <button type="button" onClick={() => { setShowInviteModal(false); setInviteLink(""); }} className="w-full text-slate-400 font-bold uppercase text-[10px]">
                     Close
                   </button>
-                </div>
+                </form>
               </div>
             </div>
           )}
@@ -1107,17 +1068,6 @@
                 </button>
               </div>
             </div>
-          )}
-
-          {/* Join Code Modal */}
-          {showJoinCodeModal && (
-            <JoinCodeModal
-              Icons={Icons}
-              joinCodeInput={joinCodeInput}
-              setJoinCodeInput={setJoinCodeInput}
-              onClose={() => setShowJoinCodeModal(false)}
-              onJoin={joinWithCode}
-            />
           )}
 
           {/* Add Expense Modal */}
@@ -1179,34 +1129,7 @@
               </div>
             </div>
           )}
-        </div>
-      );
-    }
 
-    function JoinCodeModal({ Icons, joinCodeInput, setJoinCodeInput, onClose, onJoin }) {
-      return (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
-          <div className="bg-white rounded-[3rem] p-10 max-w-md w-full modal-enter shadow-2xl">
-            <h2 className="text-3xl font-black mb-2">Join with Code</h2>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">
-              Paste code like XXXX-XXXX-XX
-            </p>
-
-            <form onSubmit={onJoin} className="space-y-4">
-              <input
-                value={joinCodeInput}
-                onChange={(e) => setJoinCodeInput(e.target.value)}
-                className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-black tracking-widest uppercase"
-                placeholder="ABCD-EFGH-JK"
-              />
-              <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black shadow-xl">
-                Join
-              </button>
-              <button type="button" onClick={onClose} className="w-full text-slate-400 font-bold uppercase text-[10px]">
-                Close
-              </button>
-            </form>
-          </div>
         </div>
       );
     }
