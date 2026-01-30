@@ -1,1233 +1,498 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>SplitSmart - House Expenses</title>
-
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-    body { font-family: 'Inter', sans-serif; }
-    .modal-enter { animation: zoomIn 0.18s ease-out; }
-    @keyframes zoomIn { from { opacity:0; transform:scale(0.98);} to {opacity:1; transform:scale(1);} }
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: #f1f5f9; }
-    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SplitSmart - House Expenses</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & Babel for Browser -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .modal-enter { animation: zoomIn 0.3s ease-out; }
+        @keyframes zoomIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        /* Custom scrollbar for a cleaner look */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
 </head>
-
 <body class="bg-slate-50 text-slate-900">
-  <div id="root"></div>
+    <div id="root"></div>
 
-  <script type="text/babel" data-type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-    import {
-      getAuth, signInWithPopup, GoogleAuthProvider,
-      onAuthStateChanged, signOut
-    } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-    import {
-      getFirestore,
-      collection, doc, addDoc, setDoc, updateDoc, deleteDoc,
-      onSnapshot, query, where, orderBy, serverTimestamp,
-      arrayUnion, getDoc, getDocs, limit
-    } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+    <script type="text/babel" data-type="module">
+        // Import Firebase from CDN
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+        import { getFirestore, collection, doc, addDoc, onSnapshot, query, where, serverTimestamp, updateDoc, arrayUnion, getDocs } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-    // =========================
-    // Firebase config (public)
-    // =========================
-    const firebaseConfig = {
-      apiKey: "AIzaSyAg5PYPLSBIOlIwTypFkNf8BRGgnIS3FXY",
-      authDomain: "splitsmart-889da.firebaseapp.com",
-      projectId: "splitsmart-889da",
-      storageBucket: "splitsmart-889da.firebasestorage.app",
-      messagingSenderId: "265383787810",
-      appId: "1:265383787810:web:de28c8f28ce1fd9a9bf97b",
-      measurementId: "G-ZN3B2YLXVT"
-    };
+        /**
+         * 🚨 FIXING PERMISSION DENIED ERROR 🚨
+         * If you see "Permission Denied", do these 3 things:
+         * 1. Go to Firebase Console > Firestore Database.
+         * 2. Click the "Rules" tab.
+         * 3. Paste this EXACTLY (then click Publish):
+         * * rules_version = '2';
+         * service cloud.firestore {
+         * match /databases/{database}/documents {
+         * match /artifacts/splitsmart-889da/public/data/groups/{groupId} {
+         * allow create: if request.auth != null;
+         * allow read, update: if request.auth != null;
+         * allow delete: if false;
+         * }
+         * }
+         * }
+         */
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
+        // --- YOUR FIREBASE CONFIG ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAg5PYPLSBIOlIwTypFkNf8BRGgnIS3FXY",
+            authDomain: "splitsmart-889da.firebaseapp.com",
+            projectId: "splitsmart-889da",
+            storageBucket: "splitsmart-889da.firebasestorage.app",
+            messagingSenderId: "265383787810",
+            appId: "1:265383787810:web:de28c8f28ce1fd9a9bf97b",
+            measurementId: "G-ZN3B2YLXVT"
+        };
 
-    const { useEffect, useMemo, useState } = React;
+        const appId = "splitsmart-889da";
 
-    // =========================
-    // Optional: Cloud Function for email sending
-    // =========================
-    // You will deploy a function named "sendInviteEmail" and paste the URL here.
-    // If you leave it blank, the app will fallback to "mailto:".
-    const SEND_INVITE_EMAIL_FUNCTION_URL = ""; // e.g. https://us-central1-YOUR_PROJECT.cloudfunctions.net/sendInviteEmail
-
-    // =========================
-    // UI constants
-    // =========================
-    const Icons = {
-      receipt: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="16" height="20" x="4" y="2" rx="2"></rect><line x1="8" x2="16" y1="6" y2="6"></line><line x1="8" x2="16" y1="10" y2="10"></line><line x1="8" x2="12" y1="14" y2="14"></line></svg>,
-      userPlus: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" x2="19" y1="8" y2="14"></line><line x1="16" x2="22" y1="11" y2="11"></line></svg>,
-      settle: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>,
-      pencil: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z"></path></svg>,
-      trash: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path></svg>,
-      users: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-3-3.87"></path><path d="M7 21v-2a4 4 0 0 1 4-4h0a4 4 0 0 1 4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>,
-      link: <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 1 0-7l1-1a5 5 0 0 1 7 7l-1 1"></path><path d="M14 11a5 5 0 0 1 0 7l-1 1a5 5 0 0 1-7-7l1-1"></path></svg>,
-    };
-
-    const CATEGORIES = [
-      { id: 'food', name: 'Food' },
-      { id: 'construction', name: 'Home Construction' },
-      { id: 'car', name: 'Car' },
-      { id: 'rent', name: 'Rent' },
-      { id: 'other', name: 'Other' },
-    ];
-
-    // =========================
-    // Helpers (money + math)
-    // =========================
-    const toCents = (val) => {
-      const n = Number(val);
-      if (!Number.isFinite(n)) return 0;
-      return Math.round(n * 100);
-    };
-    const toDollars = (cents) => (cents / 100);
-
-    function distributeRounding(amountCents, owedMapCents, percentages) {
-      const sum = Object.values(owedMapCents).reduce((a,b)=>a+b,0);
-      let remainder = amountCents - sum;
-      if (remainder === 0) return owedMapCents;
-
-      const entries = Object.entries(percentages || {});
-      entries.sort((a,b) => (b[1] ?? 0) - (a[1] ?? 0));
-      const targetUid = entries[0]?.[0] || Object.keys(owedMapCents)[0];
-
-      const fixed = { ...owedMapCents };
-      fixed[targetUid] = (fixed[targetUid] || 0) + remainder;
-      return fixed;
-    }
-
-    function computeNetBalances(members, expenses, payments) {
-      const net = {};
-      members.forEach(m => { net[m.uid] = 0; });
-
-      // Expenses
-      for (const exp of expenses) {
-        const amountCents = exp.amountCents || 0;
-        const paidBy = exp.paidByUserId;
-        const participants = Array.isArray(exp.participants) ? exp.participants : [];
-
-        if (net[paidBy] !== undefined) net[paidBy] += amountCents;
-
-        if (exp.splitType === 'PERCENTAGE') {
-          const percentages = exp.percentages || {};
-          let owed = {};
-          for (const uid of participants) {
-            const pct = Number(percentages[uid] || 0);
-            owed[uid] = Math.round(amountCents * (pct / 100));
-          }
-          owed = distributeRounding(amountCents, owed, percentages);
-          for (const uid of participants) {
-            if (net[uid] !== undefined) net[uid] -= (owed[uid] || 0);
-          }
-        } else {
-          // Equal
-          const count = participants.length || 0;
-          if (count > 0) {
-            const base = Math.floor(amountCents / count);
-            let rem = amountCents - base * count;
-            for (let i = 0; i < participants.length; i++) {
-              const uid = participants[i];
-              const owe = base + (rem > 0 ? 1 : 0);
-              if (rem > 0) rem -= 1;
-              if (net[uid] !== undefined) net[uid] -= owe;
-            }
-          }
-        }
-      }
-
-      // Payments (optional) reduce debts
-      for (const p of payments) {
-        const amt = p.amountCents || 0;
-        if (net[p.fromUserId] !== undefined) net[p.fromUserId] += amt;
-        if (net[p.toUserId] !== undefined) net[p.toUserId] -= amt;
-      }
-
-      return net;
-    }
-
-    function simplifyDebts(net) {
-      const creditors = [];
-      const debtors = [];
-      for (const [uid, amt] of Object.entries(net)) {
-        if (amt > 0) creditors.push([uid, amt]);
-        else if (amt < 0) debtors.push([uid, -amt]);
-      }
-      creditors.sort((a,b) => b[1]-a[1]);
-      debtors.sort((a,b) => b[1]-a[1]);
-
-      const transfers = [];
-      let i = 0, j = 0;
-      while (i < debtors.length && j < creditors.length) {
-        const [duid, damt] = debtors[i];
-        const [cuid, camt] = creditors[j];
-        const pay = Math.min(damt, camt);
-        transfers.push({ fromUserId: duid, toUserId: cuid, amountCents: pay });
-        debtors[i][1] -= pay;
-        creditors[j][1] -= pay;
-        if (debtors[i][1] === 0) i++;
-        if (creditors[j][1] === 0) j++;
-      }
-      return transfers;
-    }
-
-    // =========================
-    // App
-    // =========================
-    function App() {
-      const [user, setUser] = useState(null);
-      const [loading, setLoading] = useState(true);
-      const [errorMessage, setErrorMessage] = useState(null);
-      const [toast, setToast] = useState(null);
-
-      const [groups, setGroups] = useState([]);
-      const [activeGroupId, setActiveGroupId] = useState(null);
-      const [activeGroup, setActiveGroup] = useState(null);
-
-      const [members, setMembers] = useState([]);
-      const [expenses, setExpenses] = useState([]);
-      const [payments, setPayments] = useState([]);
-
-      const [pendingInvites, setPendingInvites] = useState([]);
-
-      const [newGroupName, setNewGroupName] = useState("");
-
-      const [showInviteModal, setShowInviteModal] = useState(false);
-      const [showMembersModal, setShowMembersModal] = useState(false);
-      const [inviteEmail, setInviteEmail] = useState("");
-      const [inviteLink, setInviteLink] = useState("");
-
-      const [showAddExpense, setShowAddExpense] = useState(false);
-      const [showEditExpense, setShowEditExpense] = useState(false);
-      const [editExpense, setEditExpense] = useState(null);
-
-      // Add/Edit expense state
-      const [splitType, setSplitType] = useState("PERCENTAGE"); // PERCENTAGE or EQUAL
-      const [payerUid, setPayerUid] = useState("");
-      const [selectedParticipants, setSelectedParticipants] = useState({});
-      const [percentages, setPercentages] = useState({}); // {uid: number}
-
-      // -------- Auth --------
-      useEffect(() => {
-        const unsub = onAuthStateChanged(auth, async (u) => {
-          setUser(u || null);
-          setLoading(false);
-          setErrorMessage(null);
-
-          if (u) {
-            try {
-              await setDoc(doc(db, "users", u.uid), {
-                displayName: u.displayName || "User",
-                email: (u.email || "").toLowerCase(),
-                photoURL: u.photoURL || null,
-                updatedAt: serverTimestamp(),
-                createdAt: serverTimestamp()
-              }, { merge: true });
-            } catch (e) {
-              console.error(e);
-              setErrorMessage(e.message);
-            }
-          } else {
-            setGroups([]); setActiveGroupId(null); setActiveGroup(null);
-            setMembers([]); setExpenses([]); setPayments([]);
-            setPendingInvites([]); setInviteLink("");
-          }
-        });
-        return () => unsub();
-      }, []);
-
-      const handleLogin = () =>
-        signInWithPopup(auth, new GoogleAuthProvider()).catch((e) => setErrorMessage(e.message));
-
-      // -------- Groups listener --------
-      useEffect(() => {
-        if (!user?.uid) return;
-
-        const q = query(collection(db, "groups"), where("memberIds", "array-contains", user.uid));
-        const unsub = onSnapshot(q, (snap) => {
-          const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          setGroups(list);
-
-          if (!activeGroupId && list.length) setActiveGroupId(list[0].id);
-          if (activeGroupId && !list.some(g => g.id === activeGroupId)) {
-            setActiveGroupId(list[0]?.id || null);
-          }
-        }, (err) => {
-          console.error(err);
-          setErrorMessage(err.code === "permission-denied"
-            ? "Permission denied. Publish Firestore rules (see rules below)."
-            : err.message);
-        });
-
-        return () => unsub();
-      }, [user?.uid, activeGroupId]);
-
-      // -------- Active group doc listener --------
-      useEffect(() => {
-        if (!activeGroupId) return;
-        const unsub = onSnapshot(doc(db, "groups", activeGroupId), (snap) => {
-          if (snap.exists()) setActiveGroup({ id: snap.id, ...snap.data() });
-          else setActiveGroup(null);
-        });
-        return () => unsub();
-      }, [activeGroupId]);
-
-      // -------- Members listener --------
-      useEffect(() => {
-        if (!user?.uid || !activeGroupId) return;
-        const q = query(collection(db, "groups", activeGroupId, "members"));
-        const unsub = onSnapshot(q, (snap) => {
-          const list = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
-          setMembers(list);
-
-          if (!payerUid) setPayerUid(user.uid);
-
-          // default participants: all members checked
-          const defaults = {};
-          list.forEach(m => { defaults[m.uid] = true; });
-          setSelectedParticipants(prev => Object.keys(prev).length ? prev : defaults);
-
-          // default percentages: equal among all selected
-          setPercentages(prev => {
-            if (Object.keys(prev).length) return prev;
-            const count = list.length || 1;
-            const eq = {};
-            list.forEach(m => { eq[m.uid] = Number((100 / count).toFixed(2)); });
-            return eq;
-          });
-        });
-        return () => unsub();
-      }, [user?.uid, activeGroupId]);
-
-      // -------- Expenses listener --------
-      useEffect(() => {
-        if (!user?.uid || !activeGroupId) return;
-        const q = query(collection(db, "groups", activeGroupId, "expenses"), orderBy("date", "desc"), limit(200));
-        const unsub = onSnapshot(q, (snap) => {
-          setExpenses(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
-        return () => unsub();
-      }, [user?.uid, activeGroupId]);
-
-      // -------- Payments listener (optional) --------
-      useEffect(() => {
-        if (!user?.uid || !activeGroupId) return;
-        const q = query(collection(db, "groups", activeGroupId, "payments"), orderBy("date", "desc"), limit(200));
-        const unsub = onSnapshot(q, (snap) => {
-          setPayments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
-        return () => unsub();
-      }, [user?.uid, activeGroupId]);
-
-      // -------- Pending invites (scan groups user is already in; plus invite link auto-accept) --------
-      useEffect(() => {
-        if (!user?.email) return;
-        const email = user.email.toLowerCase();
-
-        const unsubs = [];
-        const collected = new Map();
-
-        groups.forEach(g => {
-          const invQ = query(
-            collection(db, "groups", g.id, "invites"),
-            where("targetEmail", "==", email),
-            where("status", "==", "pending")
-          );
-          const unsub = onSnapshot(invQ, (snap) => {
-            for (const [k,v] of collected.entries()) {
-              if (v.groupId === g.id) collected.delete(k);
-            }
-            snap.docs.forEach(d => collected.set(d.id, { id: d.id, groupId: g.id, ...d.data(), groupName: g.name }));
-            setPendingInvites(Array.from(collected.values()));
-          });
-          unsubs.push(unsub);
-        });
-
-        return () => unsubs.forEach(u => u());
-      }, [groups, user?.email]);
-
-      // -------- Auto-accept invite from URL params (?group=...&invite=...) --------
-      useEffect(() => {
-        if (!user?.uid || !user?.email) return;
-
-        const params = new URLSearchParams(window.location.search);
-        const groupId = params.get("group");
-        const inviteId = params.get("invite");
-        if (!groupId || !inviteId) return;
-
-        (async () => {
-          try {
-            const invRef = doc(db, "groups", groupId, "invites", inviteId);
-            const invSnap = await getDoc(invRef);
-            if (!invSnap.exists()) return;
-
-            const inv = invSnap.data();
-            const email = user.email.toLowerCase();
-            if ((inv.targetEmail || "").toLowerCase() !== email) {
-              setToast("Invite email does not match your Google login email.");
-              return;
-            }
-            if (inv.status !== "pending") return;
-
-            await acceptInvite({ id: inviteId, groupId, ...inv });
-
-            // clean URL
-            window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
-          } catch (e) {
-            console.error(e);
-            setErrorMessage(e.message);
-          }
-        })();
-      }, [user?.uid, user?.email]);
-
-      // -------- Computed stats --------
-      const stats = useMemo(() => {
-        if (!user?.uid || !activeGroupId) return { totalCents: 0, perPersonCents: 0, balances: [], transfers: [] };
-
-        const totalCents = expenses.reduce((s,t) => s + (t.amountCents || 0), 0);
-
-        const memberMap = new Map(members.map(m => [m.uid, m]));
-        const net = computeNetBalances(members, expenses, payments);
-
-        const balances = members.map(m => ({ ...m, netCents: net[m.uid] || 0 }));
-
-        const transfers = simplifyDebts(net).map(tr => ({
-          ...tr,
-          fromName: memberMap.get(tr.fromUserId)?.displayName || memberMap.get(tr.fromUserId)?.name || "Member",
-          toName: memberMap.get(tr.toUserId)?.displayName || memberMap.get(tr.toUserId)?.name || "Member"
-        }));
-
-        const perPersonCents = members.length ? Math.round(totalCents / members.length) : 0;
-
-        return { totalCents, perPersonCents, balances, transfers };
-      }, [expenses, payments, members, user?.uid, activeGroupId]);
-
-      // =========================
-      // Permissions
-      // =========================
-      const isOwner = !!(activeGroup && user && activeGroup.ownerId === user.uid);
-
-      const canEditExpense = (exp) => {
-        if (!user) return false;
-        return isOwner || exp.createdByUserId === user.uid;
-      };
-
-      // Inviter-only member removal:
-      // member.addedByUserId is set from invite.invitedByUserId when accepted.
-      const canRemoveMember = (member) => {
-        if (!user || !member) return false;
-        if (member.uid === user.uid) return false; // don't remove yourself here
-        return isOwner || member.addedByUserId === user.uid;
-      };
-
-      // =========================
-      // Actions
-      // =========================
-      const createGroup = async () => {
-        if (!newGroupName.trim() || !user?.uid || !user?.email) return;
-        setErrorMessage(null);
+        // Initialize Firebase services safely
+        let app, auth, db;
         try {
-          const groupRef = await addDoc(collection(db, "groups"), {
-            name: newGroupName.trim(),
-            ownerId: user.uid,
-            memberIds: [user.uid],
-            memberEmails: [user.email.toLowerCase()],
-            createdAt: serverTimestamp()
-          });
-
-          await setDoc(doc(db, "groups", groupRef.id, "members", user.uid), {
-            displayName: user.displayName || "User",
-            email: user.email.toLowerCase(),
-            role: "owner",
-            joinedAt: serverTimestamp(),
-            addedByUserId: user.uid
-          });
-
-          setNewGroupName("");
-          setActiveGroupId(groupRef.id);
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
         } catch (e) {
-          console.error(e);
-          setErrorMessage(e.message);
+            console.error("Firebase Initialization Error.", e);
         }
-      };
 
-      const copyToClipboard = async (text) => {
-        try {
-          await navigator.clipboard.writeText(text);
-          setToast("Copied!");
-          setTimeout(() => setToast(null), 1200);
-        } catch {
-          setToast("Copy failed");
-          setTimeout(() => setToast(null), 1200);
-        }
-      };
+        const { useState, useEffect, useMemo } = React;
 
-      const sendInvite = async (e) => {
-        e.preventDefault();
-        if (!activeGroupId || !inviteEmail.trim() || !user?.uid) return;
-        setErrorMessage(null);
-        const email = inviteEmail.toLowerCase().trim();
-
-        try {
-          const inviteRef = await addDoc(collection(db, "groups", activeGroupId, "invites"), {
-            targetEmail: email,
-            invitedByUserId: user.uid,
-            status: "pending",
-            createdAt: serverTimestamp()
-          });
-
-          // Build an invite link that works with GitHub Pages repo path
-          const base = "https://01ananto.github.io/SplitSmart/";
-          const link = `${base}?group=${encodeURIComponent(activeGroupId)}&invite=${encodeURIComponent(inviteRef.id)}`;
-          setInviteLink(link);
-
-          // Try real email sending via Cloud Function, else fallback to mailto
-          const groupName = activeGroup?.name || "SplitSmart Group";
-
-          if (SEND_INVITE_EMAIL_FUNCTION_URL) {
-            await fetch(SEND_INVITE_EMAIL_FUNCTION_URL, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                toEmail: email,
-                groupName,
-                inviteLink: link,
-                inviterName: user.displayName || "Someone"
-              })
+        const Icon = ({ name, size = 20, className = "" }) => {
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
             });
-            setToast("Invite email sent!");
-            setTimeout(() => setToast(null), 1400);
-          } else {
-            // fallback mailto (not automatic send)
-            window.location.href =
-              `mailto:${email}?subject=Join SplitSmart&body=You were invited to join "${groupName}".%0A%0AClick to join: ${encodeURIComponent(link)}%0A%0ASign in with Google using: ${email}`;
-          }
-
-          setInviteEmail("");
-        } catch (e) {
-          console.error(e);
-          setErrorMessage(e.message);
-        }
-      };
-
-      const acceptInvite = async (invite) => {
-        if (!user?.uid || !user?.email) return;
-        setErrorMessage(null);
-
-        try {
-          const groupRef = doc(db, "groups", invite.groupId);
-          const groupSnap = await getDoc(groupRef);
-          if (!groupSnap.exists()) throw new Error("Group not found.");
-
-          await updateDoc(groupRef, {
-            memberIds: arrayUnion(user.uid),
-            memberEmails: arrayUnion(user.email.toLowerCase())
-          });
-
-          // IMPORTANT: store addedByUserId = inviter, so inviter-only removal works
-          await setDoc(doc(db, "groups", invite.groupId, "members", user.uid), {
-            displayName: user.displayName || "User",
-            email: user.email.toLowerCase(),
-            role: "member",
-            joinedAt: serverTimestamp(),
-            addedByUserId: invite.invitedByUserId || null
-          }, { merge: true });
-
-          await updateDoc(doc(db, "groups", invite.groupId, "invites", invite.id), {
-            status: "accepted"
-          });
-
-          setActiveGroupId(invite.groupId);
-          setToast("Invite accepted!");
-          setTimeout(() => setToast(null), 1400);
-        } catch (e) {
-          console.error(e);
-          setErrorMessage(e.message);
-        }
-      };
-
-      const declineInvite = async (invite) => {
-        try {
-          await updateDoc(doc(db, "groups", invite.groupId, "invites", invite.id), { status: "declined" });
-        } catch (e) {
-          console.error(e);
-          setErrorMessage(e.message);
-        }
-      };
-
-      const removeMember = async (member) => {
-        if (!activeGroupId || !member?.uid) return;
-        if (!canRemoveMember(member)) {
-          setErrorMessage("You don't have permission to remove this member.");
-          return;
-        }
-
-        try {
-          // Remove member doc
-          await deleteDoc(doc(db, "groups", activeGroupId, "members", member.uid));
-
-          // Remove from group arrays (best effort)
-          // Note: arrayRemove needs exact string match; ok for uid/email.
-          await updateDoc(doc(db, "groups", activeGroupId), {
-            memberIds: activeGroup?.memberIds ? activeGroup.memberIds.filter(x => x !== member.uid) : [],
-            memberEmails: activeGroup?.memberEmails ? activeGroup.memberEmails.filter(x => x !== (member.email || "")) : []
-          });
-
-          setToast("Member removed");
-          setTimeout(() => setToast(null), 1400);
-        } catch (e) {
-          console.error(e);
-          setErrorMessage(e.message);
-        }
-      };
-
-      const toggleParticipant = (uid) => setSelectedParticipants(prev => ({ ...prev, [uid]: !prev[uid] }));
-
-      const getActiveParticipants = () =>
-        members.map(m => m.uid).filter(uid => selectedParticipants[uid]);
-
-      const validatePercentages = (uids, pctMap) => {
-        const sum = uids.reduce((s,uid) => s + Number(pctMap[uid] || 0), 0);
-        return Math.abs(sum - 100) <= 0.01;
-      };
-
-      const addExpense = async (e) => {
-        e.preventDefault();
-        if (!user?.uid || !activeGroupId) return;
-        setErrorMessage(null);
-
-        const formData = new FormData(e.target);
-        const description = String(formData.get('description') || '').trim();
-        const category = String(formData.get('category') || 'other');
-        const amountCents = toCents(formData.get('amount'));
-        const paidByUserId = payerUid || user.uid;
-
-        const participants = getActiveParticipants();
-        if (!participants.length) return setErrorMessage("Select at least 1 participant.");
-        if (!amountCents || amountCents <= 0) return setErrorMessage("Enter a valid amount.");
-
-        const exp = {
-          description,
-          category,
-          amountCents,
-          paidByUserId,
-          participants,
-          splitType,
-          createdByUserId: user.uid,
-          createdAt: serverTimestamp(),
-          date: serverTimestamp()
+            return <i data-lucide={name} style={{width: size, height: size}} className={`inline-block ${className}`}></i>;
         };
 
-        if (splitType === "PERCENTAGE") {
-          if (!validatePercentages(participants, percentages)) {
-            return setErrorMessage("Percentages must total 100% across selected participants.");
-          }
-          const pct = {};
-          participants.forEach(uid => { pct[uid] = Number(percentages[uid] || 0); });
-          exp.percentages = pct;
-        }
+        const CATEGORIES = [
+            { id: 'food', name: 'Food', icon: 'utensils' },
+            { id: 'construction', name: 'Home Construction', icon: 'hammer' },
+            { id: 'car', name: 'Car', icon: 'car' },
+            { id: 'rent', name: 'Rent', icon: 'home' },
+            { id: 'other', name: 'Other', icon: 'receipt' },
+        ];
 
-        try {
-          await addDoc(collection(db, "groups", activeGroupId, "expenses"), exp);
-          setShowAddExpense(false);
-        } catch (e) {
-          console.error(e);
-          setErrorMessage(e.message);
-        }
-      };
+        function App() {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [groups, setGroups] = useState([]);
+            const [activeGroup, setActiveGroup] = useState(null);
+            const [showAddExpense, setShowAddExpense] = useState(false);
+            const [showInviteModal, setShowInviteModal] = useState(false);
+            const [newGroupName, setNewGroupName] = useState("");
+            const [inviteEmail, setInviteEmail] = useState("");
+            const [paymentType, setPaymentType] = useState("paid_by_me_split_equally");
+            const [errorMessage, setErrorMessage] = useState(null);
 
-      const openEditExpense = (exp) => {
-        setEditExpense(exp);
-        setShowEditExpense(true);
+            useEffect(() => {
+                if (!auth) return;
+                const unsubscribe = onAuthStateChanged(auth, async (u) => {
+                    setUser(u);
+                    setLoading(false);
+                    if (u && u.email) {
+                        const email = u.email.toLowerCase();
+                        try {
+                            const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'groups'), where('memberEmails', 'array-contains', email));
+                            const snapshot = await getDocs(q);
+                            snapshot.docs.forEach(async (groupDoc) => {
+                                const members = groupDoc.data().members || [];
+                                let needsUpdate = false;
+                                const updatedMembers = members.map(m => {
+                                    if (m && m.email?.toLowerCase() === email && (!m.joined || m.uid?.startsWith('guest_'))) {
+                                        needsUpdate = true;
+                                        return { ...m, uid: u.uid, name: u.displayName || m.name || 'User', joined: true };
+                                    }
+                                    return m;
+                                });
+                                if (needsUpdate) {
+                                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'groups', groupDoc.id), {
+                                        members: updatedMembers,
+                                        memberIds: arrayUnion(u.uid)
+                                    });
+                                }
+                            });
+                        } catch (err) {
+                            console.error("Sync error:", err);
+                        }
+                    }
+                });
+                return () => unsubscribe();
+            }, []);
 
-        // prefill modal state
-        setSplitType(exp.splitType || "PERCENTAGE");
-        setPayerUid(exp.paidByUserId || user.uid);
+            useEffect(() => {
+                if (!user || !user.email || !db) return;
+                setErrorMessage(null);
+                
+                // Real-time listener for groups the user belongs to
+                const q = query(
+                    collection(db, 'artifacts', appId, 'public', 'data', 'groups'), 
+                    where('memberEmails', 'array-contains', user.email.toLowerCase())
+                );
+                
+                const unsubscribe = onSnapshot(q, (snapshot) => {
+                    const gData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setGroups(gData);
+                    if (activeGroup) {
+                        const updated = gData.find(g => g.id === activeGroup.id);
+                        if (updated) setActiveGroup(updated);
+                    } else if (gData.length > 0 && !activeGroup) {
+                        setActiveGroup(gData[0]);
+                    }
+                }, (err) => {
+                    console.error("Firestore error details:", err);
+                    if (err.code === 'permission-denied') {
+                        setErrorMessage("Permission Denied: Your Security Rules are blocking access. Go to Firestore Database > Rules and ensure you have Published the rules.");
+                    } else if (err.code === 'not-found') {
+                        setErrorMessage("Database not found. Please click 'Create Database' in your Firestore console.");
+                    } else {
+                        setErrorMessage(`Firestore Error: ${err.message}`);
+                    }
+                });
 
-        const sel = {};
-        (exp.participants || []).forEach(uid => { sel[uid] = true; });
-        // keep others unchecked
-        members.forEach(m => { if (sel[m.uid] === undefined) sel[m.uid] = false; });
-        setSelectedParticipants(sel);
+                return () => unsubscribe();
+            }, [user?.email, activeGroup?.id]);
 
-        setPercentages(exp.percentages || {});
-      };
+            const stats = useMemo(() => {
+                if (!activeGroup || !user) return { total: 0, perPerson: 0, balances: [] };
+                
+                const expenses = activeGroup.expenses || [];
+                const members = (activeGroup.members || []).filter(m => m && m.uid);
+                const total = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+                const netBalances = {};
+                
+                members.forEach(m => { netBalances[m.uid] = 0; });
 
-      const saveEditExpense = async (e) => {
-        e.preventDefault();
-        if (!editExpense?.id || !activeGroupId || !user?.uid) return;
-        if (!canEditExpense(editExpense)) return setErrorMessage("You can't edit this expense.");
+                expenses.forEach(exp => {
+                    const amount = exp.amount || 0;
+                    if (netBalances[exp.paidBy] !== undefined) netBalances[exp.paidBy] += amount;
+                    
+                    if (exp.logicType === 'i_owe_full' || exp.logicType === 'guest_is_owed_full') {
+                        if (netBalances[user.uid] !== undefined) netBalances[user.uid] -= amount;
+                    } else if (exp.logicType === 'settlement') {
+                        if (netBalances[exp.targetMemberUid] !== undefined) netBalances[exp.targetMemberUid] -= amount;
+                    } else {
+                        const share = amount / (members.length || 1);
+                        members.forEach(m => {
+                            if (netBalances[m.uid] !== undefined) netBalances[m.uid] -= share;
+                        });
+                    }
+                });
 
-        setErrorMessage(null);
-        const formData = new FormData(e.target);
+                return { 
+                    total, 
+                    perPerson: total / (members.length || 1), 
+                    balances: members.map(m => ({ ...m, balance: netBalances[m.uid] || 0 })) 
+                };
+            }, [activeGroup, user]);
 
-        const description = String(formData.get('description') || '').trim();
-        const category = String(formData.get('category') || 'other');
-        const amountCents = toCents(formData.get('amount'));
-        const paidByUserId = payerUid || user.uid;
+            const handleLogin = async () => {
+                setErrorMessage(null);
+                try {
+                    const provider = new GoogleAuthProvider();
+                    await signInWithPopup(auth, provider);
+                } catch (error) {
+                    console.error("Login Error", error);
+                    setErrorMessage("Login failed: " + error.message);
+                }
+            };
+            
+            const createGroup = async () => {
+                if (!newGroupName.trim() || !user || !user.email) return;
+                setErrorMessage(null);
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'groups'), {
+                        name: newGroupName,
+                        createdBy: user.uid,
+                        memberIds: [user.uid],
+                        memberEmails: [user.email.toLowerCase()],
+                        members: [{ uid: user.uid, name: user.displayName || 'User', email: user.email.toLowerCase(), joined: true }],
+                        expenses: [],
+                        createdAt: serverTimestamp()
+                    });
+                    setNewGroupName("");
+                } catch (err) {
+                    console.error("Group creation failed", err);
+                    if (err.code === 'permission-denied') {
+                        setErrorMessage("Permission Denied: Your database rules are blocking group creation. Ensure your Rules are set to 'Published' in the Firebase Console.");
+                    } else {
+                        setErrorMessage(`Creation error: ${err.message}`);
+                    }
+                }
+            };
 
-        const participants = getActiveParticipants();
-        if (!participants.length) return setErrorMessage("Select at least 1 participant.");
-        if (!amountCents || amountCents <= 0) return setErrorMessage("Enter a valid amount.");
+            const handleInvite = async (e) => {
+                e.preventDefault();
+                const email = inviteEmail.toLowerCase().trim();
+                if (!activeGroup || !email) return;
+                if (activeGroup.memberEmails?.includes(email)) return;
+                
+                try {
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'groups', activeGroup.id), {
+                        memberEmails: arrayUnion(email),
+                        members: arrayUnion({ uid: `guest_${Date.now()}`, name: email.split('@')[0], email: email, joined: false })
+                    });
+                    const subject = encodeURIComponent(`Join SplitSmart: ${activeGroup.name}`);
+                    const body = encodeURIComponent(`I've invited you to split expenses for ${activeGroup.name}. Join here: ${window.location.href}`);
+                    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+                    setInviteEmail("");
+                    setShowInviteModal(false);
+                } catch (err) {
+                    console.error("Invite failed", err);
+                }
+            };
 
-        const patch = {
-          description,
-          category,
-          amountCents,
-          paidByUserId,
-          participants,
-          splitType,
-          updatedAt: serverTimestamp()
-        };
+            const handleSettle = async (otherMember) => {
+                const balance = stats.balances.find(b => b.uid === otherMember.uid)?.balance;
+                if (!balance || balance === 0) return;
 
-        if (splitType === "PERCENTAGE") {
-          if (!validatePercentages(participants, percentages)) {
-            return setErrorMessage("Percentages must total 100% across selected participants.");
-          }
-          const pct = {};
-          participants.forEach(uid => { pct[uid] = Number(percentages[uid] || 0); });
-          patch.percentages = pct;
-        } else {
-          patch.percentages = {}; // clear
-        }
+                const amount = Math.abs(balance);
+                const isUserPayer = balance > 0;
 
-        try {
-          await updateDoc(doc(db, "groups", activeGroupId, "expenses", editExpense.id), patch);
-          setShowEditExpense(false);
-          setEditExpense(null);
-          setToast("Expense updated");
-          setTimeout(() => setToast(null), 1200);
-        } catch (e) {
-          console.error(e);
-          setErrorMessage(e.message);
-        }
-      };
-
-      const deleteExpense = async (exp) => {
-        if (!exp?.id || !activeGroupId) return;
-        if (!canEditExpense(exp)) return setErrorMessage("You can't delete this expense.");
-        if (!confirm("Delete this expense?")) return;
-
-        try {
-          await deleteDoc(doc(db, "groups", activeGroupId, "expenses", exp.id));
-          setToast("Deleted");
-          setTimeout(() => setToast(null), 1200);
-        } catch (e) {
-          console.error(e);
-          setErrorMessage(e.message);
-        }
-      };
-
-      // =========================
-      // UI
-      // =========================
-      if (loading) {
-        return <div className="h-screen flex items-center justify-center font-black text-indigo-600 text-2xl animate-pulse">SPLITSMART</div>;
-      }
-
-      if (!user) {
-        return (
-          <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
-            <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl max-w-md w-full text-center space-y-8 border modal-enter">
-              <h1 className="text-4xl font-black">SplitSmart</h1>
-              {errorMessage && <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-xs font-bold">{errorMessage}</div>}
-              <button onClick={handleLogin} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-lg hover:bg-slate-800 transition-all flex items-center justify-center gap-3">
-                <img src="https://www.google.com/favicon.ico" className="w-5 h-5 invert" /> Continue with Google
-              </button>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                If you have an invite link, open it then sign in.
-              </p>
-            </div>
-          </div>
-        );
-      }
-
-      const myNet = stats.balances.find(b => b.uid === user.uid)?.netCents || 0;
-
-      return (
-        <div className="min-h-screen flex flex-col md:flex-row">
-          {/* Sidebar */}
-          <div className="w-full md:w-80 bg-white border-r p-8 flex flex-col shrink-0">
-            <h2 className="font-black text-2xl text-indigo-600 mb-6 tracking-tighter">SplitSmart</h2>
-
-            {/* Pending Invites */}
-            {pendingInvites.length > 0 && (
-              <div className="mb-6 bg-indigo-50 border border-indigo-100 rounded-3xl p-4">
-                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-3">Pending Invites</p>
-                <div className="space-y-2">
-                  {pendingInvites.map(inv => (
-                    <div key={inv.id} className="bg-white rounded-2xl p-3 border flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-black text-xs truncate">{inv.groupName || "Group"}</p>
-                        <p className="text-[10px] font-bold text-slate-400 truncate">{inv.targetEmail}</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => acceptInvite(inv)} className="px-3 py-1 rounded-xl bg-indigo-600 text-white text-[10px] font-black">Accept</button>
-                        <button onClick={() => declineInvite(inv)} className="px-3 py-1 rounded-xl bg-slate-100 text-slate-700 text-[10px] font-black">No</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex-1 space-y-6 overflow-y-auto">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Houses</h3>
-              <div className="space-y-2">
-                {groups.map(g => (
-                  <button
-                    key={g.id}
-                    onClick={() => setActiveGroupId(g.id)}
-                    className={`w-full text-left p-4 rounded-2xl font-black text-sm transition-all ${
-                      activeGroupId === g.id ? 'bg-indigo-600 text-white shadow-lg' : 'hover:bg-slate-50 text-slate-600'
-                    }`}
-                  >
-                    {g.name}
-                  </button>
-                ))}
-              </div>
-
-              <input
-                className="w-full p-4 bg-slate-50 border-2 border-dashed rounded-2xl text-xs font-bold outline-none"
-                placeholder="+ New House (Enter)"
-                value={newGroupName}
-                onChange={e => setNewGroupName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && createGroup()}
-              />
-            </div>
-
-            <div className="mt-8 pt-6 border-t flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center font-black text-indigo-600">
-                {(user.displayName || 'U')[0]}
-              </div>
-              <div className="flex-1 truncate">
-                <p className="font-black text-xs truncate">{user.displayName}</p>
-                <button onClick={() => signOut(auth)} className="text-[10px] font-bold text-red-500 uppercase tracking-widest">
-                  Sign Out
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Main */}
-          <div className="flex-1 p-6 md:p-12 overflow-y-auto">
-            {toast && <div className="mb-4 p-3 bg-slate-900 text-white rounded-2xl font-black text-xs inline-block">{toast}</div>}
-
-            {errorMessage && (
-              <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl font-bold text-xs">
-                {errorMessage}
-              </div>
-            )}
-
-            {!activeGroup ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-200">
-                <h2 className="text-2xl font-black text-slate-300">Choose a house to start</h2>
-              </div>
-            ) : (
-              <div className="max-w-5xl mx-auto space-y-12">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                  <div>
-                    <h1 className="text-5xl font-black tracking-tighter">{activeGroup.name}</h1>
-                    <p className="text-slate-400 font-bold mt-2 uppercase text-[10px] tracking-widest">
-                      {members.length} Members • {isOwner ? "Owner" : "Member"}
-                    </p>
-                  </div>
-
-                  <div className="flex gap-3 flex-wrap">
-                    <button onClick={() => setShowMembersModal(true)} className="bg-white border-2 px-6 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-slate-50">
-                      <span className="w-4 h-4">{Icons.users}</span> Members
-                    </button>
-
-                    <button onClick={() => setShowInviteModal(true)} className="bg-white border-2 px-6 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-slate-50">
-                      <span className="w-4 h-4">{Icons.userPlus}</span> Invite
-                    </button>
-
-                    <button onClick={() => setShowAddExpense(true)} className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl hover:bg-indigo-700 active:scale-95">
-                      Add Expense
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                  <div className="bg-white p-10 rounded-[3rem] border shadow-sm">
-                    <p className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Spent</p>
-                    <h3 className="text-4xl font-black">${toDollars(stats.totalCents).toFixed(2)}</h3>
-                  </div>
-                  <div className="bg-white p-10 rounded-[3rem] border shadow-sm">
-                    <p className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Average</p>
-                    <h3 className="text-4xl font-black">${toDollars(stats.perPersonCents).toFixed(2)}</h3>
-                  </div>
-                  <div className={`p-10 rounded-[3rem] border shadow-sm ${myNet >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-                    <p className="text-[10px] font-black uppercase mb-4 opacity-60 tracking-widest">Your Net</p>
-                    <h3 className="text-4xl font-black">${Math.abs(toDollars(myNet)).toFixed(2)}</h3>
-                    <p className="text-[10px] font-bold mt-2 opacity-70 uppercase tracking-widest">
-                      {myNet >= 0 ? "You are owed" : "You owe"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 xl:grid-cols-12 gap-12">
-                  {/* Activity */}
-                  <div className="xl:col-span-8 space-y-6">
-                    <h2 className="text-2xl font-black tracking-tight">Activity</h2>
-                    <div className="space-y-4">
-                      {expenses.length === 0 ? (
-                        <div className="p-16 text-center text-slate-300 font-bold border-4 border-dashed rounded-[3rem]">
-                          Empty ledger
-                        </div>
-                      ) : (
-                        expenses.map(exp => {
-                          const paidByName = members.find(m => m.uid === exp.paidByUserId)?.displayName || "Member";
-                          const amt = toDollars(exp.amountCents || 0).toFixed(2);
-                          return (
-                            <div key={exp.id} className="bg-white p-6 rounded-3xl border border-slate-100 flex items-center gap-6 hover:shadow-md transition-all">
-                              <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0">
-                                <div className="w-5 h-5">{Icons.receipt}</div>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-black text-lg truncate">{exp.description || "Expense"}</p>
-                                <p className="text-xs font-bold text-slate-400 uppercase truncate">
-                                  Paid by {paidByName} • {exp.splitType === "PERCENTAGE" ? "Percent split" : "Equal split"}
-                                </p>
-                              </div>
-
-                              <div className="flex items-center gap-3">
-                                <p className="font-black text-2xl shrink-0">${amt}</p>
-
-                                {canEditExpense(exp) && (
-                                  <>
-                                    <button
-                                      title="Edit"
-                                      onClick={() => openEditExpense(exp)}
-                                      className="p-2 rounded-xl bg-slate-50 border hover:bg-slate-100"
-                                    >
-                                      <span className="w-4 h-4 block">{Icons.pencil}</span>
-                                    </button>
-                                    <button
-                                      title="Delete"
-                                      onClick={() => deleteExpense(exp)}
-                                      className="p-2 rounded-xl bg-red-50 border border-red-100 hover:bg-red-100 text-red-700"
-                                    >
-                                      <span className="w-4 h-4 block">{Icons.trash}</span>
-                                    </button>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          );
+                try {
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'groups', activeGroup.id), {
+                        expenses: arrayUnion({
+                            id: crypto.randomUUID(),
+                            description: `Settlement: ${user.displayName || 'User'} & ${otherMember.name || 'Member'}`,
+                            amount: amount,
+                            category: 'other',
+                            paidBy: isUserPayer ? user.uid : otherMember.uid,
+                            paidByName: isUserPayer ? (user.displayName || 'User') : (otherMember.name || 'Member'),
+                            targetMemberUid: isUserPayer ? otherMember.uid : user.uid,
+                            logicType: 'settlement',
+                            date: new Date().toISOString()
                         })
-                      )}
-                    </div>
-                  </div>
+                    });
+                } catch (err) {
+                    console.error("Settlement failed", err);
+                }
+            };
 
-                  {/* Debts */}
-                  <div className="xl:col-span-4 space-y-6">
-                    <h2 className="text-2xl font-black tracking-tight">Simplified Debts</h2>
+            const handleAddExpense = async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const amount = parseFloat(formData.get('amount'));
+                const logic = formData.get('splitLogic');
+                const targetUid = formData.get('targetMember');
+                let paidBy = user.uid;
+                let paidByName = user.displayName || 'User';
+                
+                if (logic !== 'paid_by_me_split_equally') {
+                    const target = (activeGroup.members || []).find(m => m.uid === targetUid);
+                    paidBy = target?.uid || 'guest';
+                    paidByName = target?.name || 'Member';
+                }
 
-                    <div className="bg-white rounded-[2.5rem] p-6 border space-y-4">
-                      {stats.transfers.length === 0 ? (
-                        <div className="p-6 text-center text-slate-300 font-bold">
-                          All settled 🎉
+                try {
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'groups', activeGroup.id), {
+                        expenses: arrayUnion({
+                            id: crypto.randomUUID(),
+                            description: formData.get('description'),
+                            amount,
+                            category: formData.get('category'),
+                            paidBy,
+                            paidByName,
+                            logicType: logic,
+                            date: new Date().toISOString()
+                        })
+                    });
+                    setShowAddExpense(false);
+                } catch (err) {
+                    console.error("Add expense failed", err);
+                }
+            };
+
+            if (loading) return <div className="flex h-screen items-center justify-center font-black text-indigo-600 animate-pulse text-2xl">SPLITSMART</div>;
+
+            if (!user) return (
+                <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-slate-50 text-center">
+                    <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl max-w-md w-full space-y-8 border border-slate-100 modal-enter">
+                        <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center mx-auto shadow-lg rotate-3">
+                            <Icon name="credit-card" size={40} className="text-white" />
                         </div>
-                      ) : (
-                        stats.transfers.map((t, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
-                            <div className="min-w-0">
-                              <p className="font-black text-xs truncate max-w-[160px]">
-                                {t.fromName} pays {t.toName}
-                              </p>
-                              <p className="text-[9px] font-black uppercase text-indigo-600">
-                                ${toDollars(t.amountCents).toFixed(2)}
-                              </p>
+                        <h1 className="text-4xl font-black text-slate-900">SplitSmart</h1>
+                        <p className="text-slate-500 font-bold">House expenses, perfectly balanced.</p>
+                        {errorMessage && <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-xs font-bold border border-red-100">{errorMessage}</div>}
+                        <button onClick={handleLogin} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-lg hover:bg-slate-800 transition-all flex items-center justify-center gap-3 shadow-xl">
+                            <img src="https://www.google.com/favicon.ico" className="w-5 h-5 invert" /> Continue with Google
+                        </button>
+                    </div>
+                </div>
+            );
+
+            const userInit = (user.displayName || 'U')[0].toUpperCase();
+
+            return (
+                <div className="min-h-screen flex flex-col md:flex-row bg-slate-50">
+                    <div className="w-full md:w-80 bg-white border-r p-8 flex flex-col shrink-0">
+                        <div className="flex items-center gap-3 mb-10">
+                            <div className="bg-indigo-600 p-2 rounded-lg text-white shadow-sm"><Icon name="credit-card" size={20} /></div>
+                            <h2 className="font-black text-2xl tracking-tighter text-indigo-600">SplitSmart</h2>
+                        </div>
+                        <div className="flex-1 space-y-6 overflow-y-auto">
+                            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Your Houses</h3>
+                            {groups.map(g => (
+                                <button key={g.id} onClick={() => setActiveGroup(g)} className={`w-full text-left p-4 rounded-2xl font-black text-sm flex items-center gap-3 transition-all ${activeGroup?.id === g.id ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100' : 'hover:bg-slate-50 text-slate-600'}`}>
+                                    <Icon name="home" size={18} /> <span className="truncate">{g.name}</span>
+                                </button>
+                            ))}
+                            <div className="pt-2">
+                                <input className="w-full p-4 bg-slate-50 border-2 border-dashed rounded-2xl text-xs font-bold outline-none focus:border-indigo-500" placeholder="+ Create House (Enter)" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} onKeyDown={e => e.key === 'Enter' && createGroup()} />
                             </div>
-                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">suggestion</span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-
-                    <h2 className="text-2xl font-black tracking-tight">Net Balances</h2>
-                    <div className="bg-white rounded-[2.5rem] p-6 border space-y-4">
-                      {stats.balances.map(b => (
-                        <div key={b.uid} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
-                          <div className="min-w-0">
-                            <p className="font-bold text-xs truncate max-w-[160px]">
-                              {b.displayName || b.name} {b.uid === user.uid && '(Me)'}
-                            </p>
-                            <p className={`text-[9px] font-black uppercase ${b.netCents >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {b.netCents >= 0 ? 'Owed' : 'Owes'} ${Math.abs(toDollars(b.netCents)).toFixed(2)}
-                            </p>
-                          </div>
-                          <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">
-                            {b.netCents >= 0 ? '+' : '-'}${Math.abs(toDollars(b.netCents)).toFixed(2)}
-                          </span>
                         </div>
-                      ))}
+                        <div className="mt-8 pt-6 border-t flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center font-black text-indigo-600">{userInit}</div>
+                            <div className="flex-1 truncate"><p className="font-black text-xs truncate">{user.displayName || 'Account'}</p><button onClick={() => signOut(auth)} className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Sign Out</button></div>
+                        </div>
                     </div>
-                  </div>
-                </div>
 
-              </div>
-            )}
-          </div>
-
-          {/* Invite Modal */}
-          {showInviteModal && (
-            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
-              <div className="bg-white rounded-[3rem] p-10 max-w-md w-full modal-enter shadow-2xl">
-                <h2 className="text-3xl font-black mb-2">Invite by Email</h2>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">
-                  They must sign in with the same email to accept
-                </p>
-
-                <form onSubmit={sendInvite} className="space-y-4">
-                  <input
-                    required
-                    type="email"
-                    value={inviteEmail}
-                    onChange={e => setInviteEmail(e.target.value)}
-                    className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold"
-                    placeholder="housemate@email.com"
-                  />
-
-                  <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black shadow-xl">
-                    Create Invite
-                  </button>
-
-                  {inviteLink && (
-                    <div className="bg-slate-50 border rounded-2xl p-4 space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Invite Link</p>
-                        <button type="button" onClick={() => copyToClipboard(inviteLink)} className="text-[10px] font-black uppercase text-indigo-600 flex items-center gap-1">
-                          <span className="w-4 h-4">{Icons.link}</span> Copy
-                        </button>
-                      </div>
-                      <p className="text-xs font-bold break-all text-slate-700">{inviteLink}</p>
-                      <p className="text-[10px] font-bold text-slate-400">
-                        If email sending isn’t set up yet, copy this link and send it manually.
-                      </p>
-                    </div>
-                  )}
-
-                  <button type="button" onClick={() => { setShowInviteModal(false); setInviteLink(""); }} className="w-full text-slate-400 font-bold uppercase text-[10px]">
-                    Close
-                  </button>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* Members Modal */}
-          {showMembersModal && (
-            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
-              <div className="bg-white rounded-[3rem] p-10 max-w-lg w-full modal-enter shadow-2xl max-h-[90vh] overflow-y-auto">
-                <h2 className="text-3xl font-black mb-6">Members</h2>
-
-                <div className="space-y-3">
-                  {members.map(m => (
-                    <div key={m.uid} className="flex items-center justify-between bg-slate-50 border rounded-2xl p-4">
-                      <div className="min-w-0">
-                        <p className="font-black text-sm truncate">
-                          {m.displayName || m.name} {m.uid === user.uid ? "(Me)" : ""}
-                        </p>
-                        <p className="text-[10px] font-bold text-slate-400 truncate">
-                          {m.email || ""} • {m.role || "member"}
-                        </p>
-                        {m.addedByUserId && (
-                          <p className="text-[10px] font-bold text-slate-400 truncate">
-                            Invited by: {members.find(x => x.uid === m.addedByUserId)?.displayName || "Member"}
-                          </p>
+                    <div className="flex-1 p-6 md:p-12 overflow-y-auto">
+                        {errorMessage && (
+                            <div className="mb-8 p-6 bg-red-50 border border-red-100 rounded-3xl text-red-600 modal-enter">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <Icon name="alert-circle" />
+                                    <h4 className="font-black uppercase tracking-widest text-xs">Action Required</h4>
+                                </div>
+                                <p className="font-bold text-sm leading-relaxed">{errorMessage}</p>
+                            </div>
                         )}
-                      </div>
 
-                      {canRemoveMember(m) && (
-                        <button
-                          onClick={() => removeMember(m)}
-                          className="px-3 py-2 rounded-xl bg-red-50 border border-red-100 text-red-700 text-[10px] font-black uppercase"
-                        >
-                          Remove
-                        </button>
-                      )}
+                        {!activeGroup ? (
+                            <div className="h-full flex flex-col items-center justify-center text-slate-200">
+                                <Icon name="users" size={80} className="mb-4 opacity-10" />
+                                <p className="font-black text-xl">Select a house to begin</p>
+                                {groups.length === 0 && <p className="text-sm font-bold text-slate-400 mt-2">Or type a name in the sidebar to create one!</p>}
+                            </div>
+                        ) : (
+                            <div className="max-w-5xl mx-auto space-y-12">
+                                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                                    <div><h1 className="text-5xl font-black text-slate-900 tracking-tighter">{activeGroup.name}</h1><p className="text-slate-400 font-bold mt-2 uppercase text-[10px] tracking-widest">{(activeGroup.members || []).length} Members</p></div>
+                                    <div className="flex gap-3">
+                                        <button onClick={() => setShowInviteModal(true)} className="bg-white border-2 px-6 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm"><Icon name="user-plus" /> Invite</button>
+                                        <button onClick={() => setShowAddExpense(true)} className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl hover:bg-indigo-700 transition-all active:scale-95">Add Expense</button>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                    <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm"><p className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Total Spending</p><h3 className="text-4xl font-black text-indigo-600">${stats.total.toFixed(2)}</h3></div>
+                                    <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm"><p className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Avg Share</p><h3 className="text-4xl font-black text-slate-800">${stats.perPerson.toFixed(2)}</h3></div>
+                                    <div className={`p-10 rounded-[3rem] border shadow-sm ${stats.balances.find(b => b.uid === user.uid)?.balance >= 0 ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}><p className="text-[10px] font-black uppercase mb-4 opacity-60 tracking-widest">Your Balance</p><h3 className={`text-4xl font-black ${stats.balances.find(b => b.uid === user.uid)?.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>${Math.abs(stats.balances.find(b => b.uid === user.uid)?.balance || 0).toFixed(2)}</h3></div>
+                                </div>
+
+                                <div className="grid grid-cols-1 xl:grid-cols-12 gap-12">
+                                    <div className="xl:col-span-8 space-y-6">
+                                        <h2 className="text-2xl font-black tracking-tight flex items-center gap-2"><Icon name="receipt" className="text-indigo-600" /> Recent Activity</h2>
+                                        <div className="space-y-4">
+                                            {(activeGroup.expenses || []).length === 0 ? (
+                                                <div className="p-20 text-center text-slate-300 font-bold border-4 border-dashed rounded-[3rem]">No bills logged yet.</div>
+                                            ) : activeGroup.expenses.slice().reverse().map(exp => (
+                                                <div key={exp.id} className="bg-white p-6 rounded-3xl border border-slate-100 flex items-center gap-6 hover:shadow-lg transition-all border-l-8" style={{borderLeftColor: exp.logicType === 'settlement' ? '#6366f1' : '#f1f5f9'}}>
+                                                    <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0"><Icon name={CATEGORIES.find(c => c.id === exp.category)?.icon || 'receipt'} /></div>
+                                                    <div className="flex-1 min-w-0"><p className="font-black text-lg text-slate-900 truncate">{exp.description}</p><p className="text-xs font-bold text-slate-400 uppercase">Paid by {exp.paidByName || 'Member'} • {new Date(exp.date).toLocaleDateString()}</p></div>
+                                                    <p className={`font-black text-2xl shrink-0 ${exp.logicType === 'settlement' ? 'text-indigo-600' : 'text-slate-900'}`}>${(exp.amount || 0).toFixed(2)}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="xl:col-span-4 space-y-6">
+                                        <h2 className="text-2xl font-black tracking-tight flex items-center gap-2"><Icon name="trending-up" className="text-indigo-600" /> Balances</h2>
+                                        <div className="bg-white rounded-[2.5rem] p-6 border border-slate-100 space-y-4 shadow-sm">
+                                            {stats.balances.map(b => (
+                                                <div key={b.uid} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl group">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black text-white ${b.balance >= 0 ? 'bg-green-500' : 'bg-red-400'}`}>{(b.name || 'U')[0].toUpperCase()}</div>
+                                                        <div className="min-w-0">
+                                                            <p className="font-bold text-xs truncate max-w-[80px]">{b.name}</p>
+                                                            <p className={`text-[8px] font-black uppercase ${b.balance >= 0 ? 'text-green-600' : 'text-red-500'}`}>${Math.abs(b.balance).toFixed(2)}</p>
+                                                        </div>
+                                                    </div>
+                                                    {b.uid !== user.uid && Math.abs(b.balance) > 0.01 && (
+                                                        <button onClick={() => handleSettle(b)} className="opacity-0 group-hover:opacity-100 px-3 py-1 bg-indigo-600 text-white text-[9px] font-black rounded-lg transition-all active:scale-90">Settle</button>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
-                  ))}
+
+                    {showInviteModal && (
+                        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
+                            <div className="bg-white rounded-[3rem] p-10 max-w-md w-full modal-enter shadow-2xl">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-3xl font-black tracking-tight text-slate-900">Invite Member</h2>
+                                    <button onClick={() => setShowInviteModal(false)} className="text-slate-300 hover:text-slate-900"><Icon name="x" size={24} /></button>
+                                </div>
+                                <form onSubmit={handleInvite} className="space-y-6">
+                                    <input required type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold outline-none focus:border-indigo-500" placeholder="housemate@email.com" />
+                                    <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black shadow-xl">Send Invitation</button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {showAddExpense && (
+                        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
+                            <div className="bg-white rounded-[3.5rem] p-10 max-w-lg w-full modal-enter shadow-2xl">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-3xl font-black tracking-tight text-slate-900">Add Bill</h2>
+                                    <button onClick={() => setShowAddExpense(false)} className="text-slate-300 hover:text-slate-900"><Icon name="x" size={24} /></button>
+                                </div>
+                                <form onSubmit={handleAddExpense} className="space-y-6">
+                                    <input name="description" required className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold outline-none" placeholder="Description" />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <input name="amount" type="number" step="0.01" required className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-black text-xl" placeholder="0.00" />
+                                        <select name="category" className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold outline-none">
+                                            {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <select name="splitLogic" value={paymentType} onChange={e => setPaymentType(e.target.value)} className="w-full p-4 bg-indigo-50 border-2 rounded-2xl font-bold outline-none">
+                                        <option value="paid_by_me_split_equally">I paid, Split Equally</option>
+                                        <option value="i_owe_full">I owe another person (full amount)</option>
+                                        <option value="guest_paid_split_equally">Someone else paid, Split Equally</option>
+                                        <option value="guest_is_owed_full">Someone else is owed full amount</option>
+                                    </select>
+                                    {paymentType !== 'paid_by_me_split_equally' && (
+                                        <select name="targetMember" className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold outline-none">
+                                            {(activeGroup.members || []).filter(m => m.uid !== user.uid).map(m => (
+                                                <option key={m.uid} value={m.uid}>{m.name || 'Member'}</option>
+                                            ))}
+                                        </select>
+                                    )}
+                                    <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black shadow-xl">Save Expense</button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
                 </div>
+            );
+        }
 
-                <button type="button" onClick={() => setShowMembersModal(false)} className="w-full mt-6 text-slate-400 font-bold uppercase text-[10px]">
-                  Close
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Add Expense Modal */}
-          {showAddExpense && (
-            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
-              <div className="bg-white rounded-[3.5rem] p-10 max-w-2xl w-full modal-enter shadow-2xl max-h-[90vh] overflow-y-auto">
-                <h2 className="text-3xl font-black mb-6">Add Expense</h2>
-
-                <ExpenseForm
-                  members={members}
-                  user={user}
-                  CATEGORIES={CATEGORIES}
-                  splitType={splitType}
-                  setSplitType={setSplitType}
-                  payerUid={payerUid}
-                  setPayerUid={setPayerUid}
-                  selectedParticipants={selectedParticipants}
-                  toggleParticipant={toggleParticipant}
-                  percentages={percentages}
-                  setPercentages={setPercentages}
-                  getActiveParticipants={getActiveParticipants}
-                  validatePercentages={validatePercentages}
-                  onSubmit={addExpense}
-                  onCancel={() => setShowAddExpense(false)}
-                  defaultDescription=""
-                  defaultAmount=""
-                  defaultCategory="other"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Edit Expense Modal */}
-          {showEditExpense && editExpense && (
-            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
-              <div className="bg-white rounded-[3.5rem] p-10 max-w-2xl w-full modal-enter shadow-2xl max-h-[90vh] overflow-y-auto">
-                <h2 className="text-3xl font-black mb-6">Edit Expense</h2>
-
-                <ExpenseForm
-                  members={members}
-                  user={user}
-                  CATEGORIES={CATEGORIES}
-                  splitType={splitType}
-                  setSplitType={setSplitType}
-                  payerUid={payerUid}
-                  setPayerUid={setPayerUid}
-                  selectedParticipants={selectedParticipants}
-                  toggleParticipant={toggleParticipant}
-                  percentages={percentages}
-                  setPercentages={setPercentages}
-                  getActiveParticipants={getActiveParticipants}
-                  validatePercentages={validatePercentages}
-                  onSubmit={saveEditExpense}
-                  onCancel={() => { setShowEditExpense(false); setEditExpense(null); }}
-                  defaultDescription={editExpense.description || ""}
-                  defaultAmount={(toDollars(editExpense.amountCents || 0)).toFixed(2)}
-                  defaultCategory={editExpense.category || "other"}
-                />
-              </div>
-            </div>
-          )}
-
-        </div>
-      );
-    }
-
-    function ExpenseForm({
-      members, user, CATEGORIES,
-      splitType, setSplitType,
-      payerUid, setPayerUid,
-      selectedParticipants, toggleParticipant,
-      percentages, setPercentages,
-      getActiveParticipants, validatePercentages,
-      onSubmit, onCancel,
-      defaultDescription, defaultAmount, defaultCategory
-    }) {
-      return (
-        <form onSubmit={onSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input name="description" required defaultValue={defaultDescription} className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold" placeholder="Description" />
-            <input name="amount" type="number" step="0.01" required defaultValue={defaultAmount} className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-black" placeholder="0.00" />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <select name="category" defaultValue={defaultCategory} className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold">
-              {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-
-            <select value={payerUid} onChange={e => setPayerUid(e.target.value)} className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-bold">
-              {members.map(m => (
-                <option key={m.uid} value={m.uid}>{m.displayName || m.name}</option>
-              ))}
-            </select>
-
-            <select value={splitType} onChange={e => setSplitType(e.target.value)} className="w-full p-4 bg-indigo-50 border-2 rounded-2xl font-black">
-              <option value="PERCENTAGE">Percent Split</option>
-              <option value="EQUAL">Equal Split</option>
-            </select>
-          </div>
-
-          <div className="bg-slate-50 border-2 rounded-3xl p-6 space-y-4">
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Participants</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {members.map(m => (
-                <label key={m.uid} className="flex items-center gap-3 bg-white border rounded-2xl p-3">
-                  <input
-                    type="checkbox"
-                    checked={!!selectedParticipants[m.uid]}
-                    onChange={() => toggleParticipant(m.uid)}
-                  />
-                  <span className="font-black text-sm truncate">{m.displayName || m.name} {m.uid === user.uid ? "(Me)" : ""}</span>
-                </label>
-              ))}
-            </div>
-
-            {splitType === "PERCENTAGE" && (
-              <div className="pt-4 space-y-3">
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Percentages (must total 100%)</p>
-                <div className="space-y-2">
-                  {members.filter(m => selectedParticipants[m.uid]).map(m => (
-                    <div key={m.uid} className="flex items-center justify-between bg-white border rounded-2xl p-3 gap-3">
-                      <span className="font-black text-sm truncate">{m.displayName || m.name}</span>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          className="w-28 p-2 bg-slate-50 border rounded-xl font-black text-right"
-                          value={percentages[m.uid] ?? 0}
-                          onChange={e => setPercentages(prev => ({ ...prev, [m.uid]: e.target.value }))}
-                        />
-                        <span className="font-black text-slate-400">%</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="text-[10px] font-black uppercase tracking-widest">
-                  Total:{" "}
-                  <span className={
-                    validatePercentages(getActiveParticipants(), percentages) ? "text-green-600" : "text-red-600"
-                  }>
-                    {getActiveParticipants().reduce((s,uid)=>s + Number(percentages[uid] || 0), 0).toFixed(2)}%
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black shadow-xl">
-            Save
-          </button>
-          <button type="button" onClick={onCancel} className="w-full text-slate-400 font-bold uppercase text-[10px] mt-2">
-            Cancel
-          </button>
-        </form>
-      );
-    }
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
 </body>
 </html>
