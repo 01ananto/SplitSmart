@@ -38,8 +38,12 @@
 
         /**
          * 🚨 FIXING PERMISSION DENIED ERROR 🚨
-         * Go to Firebase Console > Firestore Database > Rules and paste this EXACTLY:
-         * * service cloud.firestore {
+         * If you see "Permission Denied", do these 3 things:
+         * * 1. Go to Firebase Console > Firestore Database.
+         * 2. If it asks you to "Create Database", click the button and choose "Start in Test Mode".
+         * 3. Go to the "Rules" tab and paste this EXACTLY (then click Publish):
+         * * rules_version = '2';
+         * service cloud.firestore {
          * match /databases/{database}/documents {
          * match /artifacts/splitsmart-889da/public/data/groups/{groupId} {
          * allow create: if request.auth != null;
@@ -49,7 +53,6 @@
          * }
          * }
          * }
-         * * NOTE: It must be .toLower() with a capital 'L'.
          */
 
         // --- YOUR FIREBASE CONFIG ---
@@ -154,9 +157,13 @@
                         setActiveGroup(gData[0]);
                     }
                 }, (err) => {
-                    console.error("Firestore error:", err);
+                    console.error("Firestore error details:", err);
                     if (err.code === 'permission-denied') {
-                        setErrorMessage("Permission Denied. Please ensure you've published the correct Security Rules in the Firebase Console.");
+                        setErrorMessage("Permission Denied: Your Security Rules are blocking access. Go to Firestore Database > Rules and ensure you have Published the rules provided in the setup instructions.");
+                    } else if (err.code === 'not-found') {
+                        setErrorMessage("Database not found. Please click 'Create Database' in your Firestore console.");
+                    } else {
+                        setErrorMessage(`Firestore Error: ${err.message}`);
                     }
                 });
             }, [user?.email, activeGroup?.id]);
@@ -222,7 +229,9 @@
                 } catch (err) {
                     console.error("Group creation failed", err);
                     if (err.code === 'permission-denied') {
-                        setErrorMessage("Permission Denied: Ensure your Firestore rules allow 'create' for logged-in users.");
+                        setErrorMessage("Permission Denied: Your database rules are blocking group creation. Ensure your Rules are set to 'Published' in the Firebase Console.");
+                    } else {
+                        setErrorMessage(`Creation error: ${err.message}`);
                     }
                 }
             };
@@ -284,7 +293,7 @@
                 let paidByName = user.displayName || 'User';
                 
                 if (logic !== 'paid_by_me_split_equally') {
-                    const target = activeGroup.members.find(m => m.uid === targetUid);
+                    const target = (activeGroup.members || []).find(m => m.uid === targetUid);
                     paidBy = target?.uid || 'guest';
                     paidByName = target?.name || 'Member';
                 }
@@ -332,7 +341,7 @@
                 <div className="min-h-screen flex flex-col md:flex-row bg-slate-50">
                     <div className="w-full md:w-80 bg-white border-r p-8 flex flex-col shrink-0">
                         <div className="flex items-center gap-3 mb-10">
-                            <div className="bg-indigo-600 p-2 rounded-lg text-white"><Icon name="credit-card" size={20} /></div>
+                            <div className="bg-indigo-600 p-2 rounded-lg text-white shadow-sm"><Icon name="credit-card" size={20} /></div>
                             <h2 className="font-black text-2xl tracking-tighter">SplitSmart</h2>
                         </div>
                         <div className="flex-1 space-y-6 overflow-y-auto">
@@ -357,7 +366,7 @@
                             <div className="mb-8 p-6 bg-red-50 border border-red-100 rounded-3xl text-red-600 modal-enter">
                                 <div className="flex items-center gap-3 mb-2">
                                     <Icon name="alert-circle" />
-                                    <h4 className="font-black uppercase tracking-widest text-xs">Configuration Needed</h4>
+                                    <h4 className="font-black uppercase tracking-widest text-xs">Action Required</h4>
                                 </div>
                                 <p className="font-bold text-sm leading-relaxed">{errorMessage}</p>
                             </div>
@@ -408,7 +417,7 @@
                                                     <div className="flex items-center gap-3">
                                                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black text-white ${b.balance >= 0 ? 'bg-green-500' : 'bg-red-400'}`}>{(b.name || 'U')[0].toUpperCase()}</div>
                                                         <div className="min-w-0">
-                                                            <p className="font-bold text-xs truncate max-w-[80px]">{b.name || 'User'} {b.uid === user.uid && '(Me)'}</p>
+                                                            <p className="font-bold text-xs truncate max-w-[80px]">{b.name}</p>
                                                             <p className={`text-[8px] font-black uppercase ${b.balance >= 0 ? 'text-green-600' : 'text-red-500'}`}>${Math.abs(b.balance).toFixed(2)}</p>
                                                         </div>
                                                     </div>
