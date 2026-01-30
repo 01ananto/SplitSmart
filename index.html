@@ -229,11 +229,12 @@
       const handleLogin = async () => {
         if (isLoggingIn) return;
         setIsLoggingIn(true);
-        setErrorMessage(null);
+        setErrorMessage(null); // Clear previous errors
         try {
           await signInWithPopup(auth, new GoogleAuthProvider());
         } catch (e) {
-          if (e.code !== 'auth/cancelled-popup-request') {
+          // Ignore cancelled popup error
+          if (e.code !== 'auth/cancelled-popup-request' && e.code !== 'auth/popup-closed-by-user') {
             setErrorMessage(e.message);
           }
         } finally {
@@ -241,7 +242,7 @@
         }
       };
 
-      // Auth
+      // Auth Listener
       useEffect(() => {
         const unsub = onAuthStateChanged(auth, async (u) => {
           setUser(u || null);
@@ -260,7 +261,7 @@
         return () => unsub();
       }, []);
 
-      // Groups
+      // Groups Listener
       useEffect(() => {
         if (!user?.uid) return;
         const q = query(collection(db, "groups"), where("memberIds", "array-contains", user.uid));
@@ -272,7 +273,7 @@
         return () => unsub();
       }, [user?.uid, activeGroupId]);
 
-      // Active Group
+      // Active Group Listener
       useEffect(() => {
         if (!activeGroupId) return;
         const unsub = onSnapshot(doc(db, "groups", activeGroupId), (snap) => {
@@ -281,7 +282,7 @@
         return () => unsub();
       }, [activeGroupId]);
 
-      // Members
+      // Members Listener
       useEffect(() => {
         if (!user?.uid || !activeGroupId) return;
         const q = query(collection(db, "groups", activeGroupId, "members"));
@@ -291,7 +292,7 @@
         return () => unsub();
       }, [user?.uid, activeGroupId]);
 
-      // Expenses
+      // Expenses Listener
       useEffect(() => {
         if (!user?.uid || !activeGroupId) return;
         const q = query(collection(db, "groups", activeGroupId, "expenses"), orderBy("createdAt", "desc"), limit(200));
@@ -301,7 +302,7 @@
         return () => unsub();
       }, [user?.uid, activeGroupId]);
 
-      // Deep Linking
+      // Deep Linking Invitations
       useEffect(() => {
         if (!user?.uid) return;
         const params = new URLSearchParams(window.location.search);
@@ -378,8 +379,11 @@
           const link = `${BASE_URL}?group=${encodeURIComponent(activeGroupId)}&invite=${encodeURIComponent(invRef.id)}`;
           setInviteLink(link);
           setInviteCode(code);
-          const url = await window.QRCode.toDataURL(link, { margin: 1, width: 240 });
-          setInviteQrDataUrl(url);
+          
+          if (window.QRCode) {
+            const url = await window.QRCode.toDataURL(link, { margin: 1, width: 240 });
+            setInviteQrDataUrl(url);
+          }
           notify("Invite created");
         } catch (e) {
           setErrorMessage(e.message);
@@ -451,7 +455,7 @@
             createdByUserId: user.uid,
             createdAt: serverTimestamp()
           });
-          // Update categories
+          // Update groups custom labels/categories
           if (data.category && !activeGroup.categories?.includes(data.category)) {
             await updateDoc(doc(db, "groups", activeGroupId), {
               categories: arrayUnion(data.category)
@@ -540,7 +544,7 @@
             </div>
           </div>
 
-          {/* Main */}
+          {/* Main Area */}
           <div className="flex-1 p-6 md:p-12 overflow-y-auto">
             {toast && <div className="mb-4 p-3 bg-slate-900 text-white rounded-2xl font-black text-xs inline-block fixed top-6 right-6 z-[60] shadow-lg">{toast}</div>}
             {errorMessage && <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl font-bold text-xs">{errorMessage}</div>}
@@ -615,7 +619,9 @@
             )}
           </div>
 
-          {/* Expense Modals */}
+          {/* Modals */}
+          {showJoinCodeModal && <JoinCodeModal input={joinCodeInput} setInput={setJoinCodeInput} onClose={() => setShowJoinCodeModal(false)} onJoin={joinWithCode} />}
+
           {(showAddExpense || showEditExpense) && (
             <ExpenseModal
               title={showAddExpense ? "Add Expense" : "Edit Expense"}
@@ -629,10 +635,9 @@
             />
           )}
 
-          {/* Members Modal */}
           {showMembersModal && (
             <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
-              <div className="bg-white rounded-[3rem] p-8 max-w-md w-full modal-enter max-h-[80vh] overflow-y-auto">
+              <div className="bg-white rounded-[3rem] p-8 max-w-md w-full modal-enter max-h-[80vh] overflow-y-auto shadow-2xl">
                 <h2 className="text-3xl font-black mb-6 tracking-tight">Members</h2>
                 <div className="space-y-3">
                   {members.map(m => (
@@ -650,13 +655,12 @@
             </div>
           )}
 
-          {/* Category Manager */}
           {showCatModal && (
             <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
-              <div className="bg-white rounded-[3rem] p-8 max-w-md w-full modal-enter max-h-[80vh] overflow-y-auto">
+              <div className="bg-white rounded-[3rem] p-8 max-w-md w-full modal-enter max-h-[80vh] overflow-y-auto shadow-2xl">
                 <h2 className="text-3xl font-black mb-6 tracking-tight">Categories</h2>
                 <div className="space-y-2">
-                  {(activeGroup.categories || []).length === 0 ? <p className="text-center text-slate-300 py-8 font-bold">No custom categories</p> :
+                  {(activeGroup.categories || []).length === 0 ? <p className="text-center text-slate-300 py-8 font-bold">No custom categories yet</p> :
                     activeGroup.categories.map(cat => (
                       <div key={cat} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-colors">
                         <span className="font-bold text-sm">{cat}</span>
@@ -669,7 +673,6 @@
             </div>
           )}
 
-          {/* Invite Modal */}
           {showInviteModal && (
             <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
               <div className="bg-white rounded-[3rem] p-10 max-w-lg w-full modal-enter shadow-2xl">
@@ -690,14 +693,12 @@
               </div>
             </div>
           )}
-
-          {showJoinCodeModal && <JoinCodeModal input={joinCodeInput} setInput={setJoinCodeInput} onClose={() => setShowJoinCodeModal(false)} onJoin={joinWithCode} />}
         </div>
       );
     }
 
     // ==========================================
-    // Components
+    // UI Components
     // ==========================================
     function StatCard({ label, val, isNet, netVal, sub }) {
       const displayVal = typeof val === 'number' ? `$${Math.abs(val).toFixed(2)}` : val;
@@ -713,11 +714,11 @@
 
     function JoinCodeModal({ input, setInput, onClose, onJoin }) {
       return (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-[70]">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-[100]">
           <div className="bg-white rounded-[3rem] p-10 max-w-md w-full modal-enter shadow-2xl">
             <h2 className="text-3xl font-black mb-2 tracking-tight">Join Month</h2>
             <form onSubmit={onJoin} className="space-y-4 mt-6">
-              <input value={input} onChange={(e) => setInput(e.target.value)} className="w-full p-5 bg-slate-50 border-2 rounded-2xl font-black tracking-widest uppercase text-center" placeholder="CODE-HERE" />
+              <input value={input} onChange={(e) => setInput(e.target.value)} className="w-full p-5 bg-slate-50 border-2 rounded-2xl font-black tracking-widest uppercase text-center focus:border-indigo-600 outline-none transition-colors" placeholder="CODE-HERE" />
               <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black shadow-xl hover:bg-indigo-700 transition-colors">Join Now</button>
               <button type="button" onClick={onClose} className="w-full text-slate-400 font-bold uppercase text-[10px] tracking-widest">Close</button>
             </form>
@@ -728,7 +729,7 @@
 
     function ExpenseModal({ title, members, user, expense, onClose, onSubmit, onDelete, categories }) {
       const otherMembers = members.filter(m => m.uid !== user.uid);
-      const otherName = otherMembers[0]?.displayName || "Invited Person";
+      const otherName = otherMembers[0]?.displayName || "Other Person";
 
       const [desc, setDesc] = useState(expense?.description || "");
       const [amt, setAmt] = useState(expense ? toDollars(expense.amountCents).toString() : "");
@@ -796,11 +797,7 @@
                   </div>
                 </div>
                 <div>
-                  <label className="text-[10px] font-black uppercase text-slate-400 ml-4 mb-2 block tracking-widest">Category</label>
-                  <input list="cats" value={cat} onChange={e => setCat(e.target.value)} className="w-full p-5 bg-slate-50 border-2 rounded-2xl font-bold focus:border-indigo-600 outline-none transition-colors" placeholder="Add Category" />
-                  <datalist id="cats">
-                    {categories.map(c => <option key={c} value={c} />)}
-                  </datalist>
+                  <input value={cat} onChange={e => setCat(e.target.value)} className="w-full p-5 mt-6 bg-slate-50 border-2 rounded-2xl font-bold focus:border-indigo-600 outline-none transition-colors" placeholder="Add Category" />
                 </div>
               </div>
 
