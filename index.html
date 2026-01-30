@@ -561,14 +561,14 @@
                       className={`w-full text-left p-4 pr-16 rounded-2xl font-black text-sm transition-all ${activeGroupId === g.id ? 'bg-indigo-600 text-white shadow-md' : 'hover:bg-slate-50 text-slate-600'}`}>
                       {g.name}
                     </button>
-                    <div className="absolute right-3 top-3.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className={`absolute right-3 top-3.5 flex gap-1 transition-opacity ${activeGroupId === g.id ? 'text-white' : 'text-slate-600'}`}>
                       <button onClick={() => {
                         const n = prompt("Rename Category:", g.name);
                         if(n) renameCategory(g.id, n);
-                      }} className="p-1 hover:bg-white/20 rounded-md">
+                      }} className="p-1 hover:bg-black/10 rounded-md">
                         <span className="w-3.5 h-3.5 block">{Icons.pencil}</span>
                       </button>
-                      <button onClick={() => deleteCategory(g.id)} className="p-1 hover:bg-white/20 rounded-md">
+                      <button onClick={() => deleteCategory(g.id)} className="p-1 hover:bg-black/10 rounded-md">
                         <span className="w-3.5 h-3.5 block">{Icons.trash}</span>
                       </button>
                     </div>
