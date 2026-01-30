@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <!-- QR generator (free CDN) -->
+  <!-- QR generator -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 
   <style>
@@ -37,11 +37,11 @@
       getFirestore,
       collection, doc, addDoc, setDoc, updateDoc, deleteDoc,
       onSnapshot, query, where, orderBy, serverTimestamp,
-      arrayUnion, arrayRemove, getDoc, getDocs, limit
+      arrayUnion, arrayRemove, getDoc, limit
     } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
     // =========================
-    // Firebase config (public - normal)
+    // Firebase config (public)
     // =========================
     const firebaseConfig = {
       apiKey: "AIzaSyAg5PYPLSBIOlIwTypFkNf8BRGgnIS3FXY",
@@ -100,7 +100,6 @@
     // =========================
     // Helpers (invite code)
     // =========================
-    // Base32 set without confusing chars: I, L, O, 0, 1
     const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
     function generateHardCode(len = 10) {
@@ -110,7 +109,6 @@
       for (let i = 0; i < len; i++) {
         out += CODE_CHARS[buf[i] % CODE_CHARS.length];
       }
-      // format like XXXX-XXXX-XX for readability
       return out.slice(0,4) + "-" + out.slice(4,8) + "-" + out.slice(8);
     }
 
@@ -309,7 +307,7 @@
         }, (err) => {
           console.error(err);
           setErrorMessage(err.code === "permission-denied"
-            ? "Permission denied. Publish Firestore rules (I pasted rules below)."
+            ? "Permission denied. Publish Firestore rules."
             : err.message);
         });
 
@@ -473,8 +471,7 @@
             createdAt: serverTimestamp()
           });
 
-          // Create joinCodes/{CODE} mapping (so user can type code to join)
-          // Use normalized code (uppercase, keep dashes)
+          // Create joinCodes/{CODE}
           const normalizedCode = code.toUpperCase();
           await setDoc(doc(db, "joinCodes", normalizedCode), {
             groupId: activeGroupId,
@@ -489,11 +486,18 @@
           setInviteLink(link);
           setInviteCode(normalizedCode);
 
-          // Generate QR data URL
+          // ✅ QR: use whichever global exists (QRCode from CDN)
           try {
-            const url = await window.QRCode.toDataURL(link, { margin: 1, width: 220 });
-            setInviteQrDataUrl(url);
-          } catch {
+            const QR = (window.QRCode && window.QRCode.toDataURL) ? window.QRCode : (window.qrcode && window.qrcode.toDataURL ? window.qrcode : window.QRCode);
+            if (QR && QR.toDataURL) {
+              const url = await QR.toDataURL(link, { margin: 1, width: 220 });
+              setInviteQrDataUrl(url);
+            } else {
+              console.warn("QR library not found on window (QRCode).");
+              setInviteQrDataUrl("");
+            }
+          } catch (e) {
+            console.error("QR failed:", e);
             setInviteQrDataUrl("");
           }
 
@@ -546,6 +550,7 @@
         notify("Joined!");
       };
 
+      // ✅ FIXED: Join Code now switches UI immediately (no refresh)
       const joinWithCode = async (e) => {
         e.preventDefault();
         if (!user?.uid) return;
@@ -562,12 +567,16 @@
 
           const data = joinSnap.data();
           if (data.status !== "pending") return setErrorMessage("This code was already used.");
-          if (data.expiresAtMs && nowMs() > data.expiresAtMs) return setErrorMessage("Code expired.");
+          if (data.expiresAtMs && Date.now() > data.expiresAtMs) return setErrorMessage("Code expired.");
 
           await acceptInvite(data.groupId, data.inviteId);
 
+          // 🔥 This line fixes the “nothing happens until refresh”
+          setActiveGroupId(data.groupId);
+
           setShowJoinCodeModal(false);
           setJoinCodeInput("");
+          notify("Joined!");
         } catch (e2) {
           console.error(e2);
           setErrorMessage(e2.message);
@@ -1039,7 +1048,7 @@
                         <img src={inviteQrDataUrl} alt="Invite QR" className="rounded-2xl border bg-white p-2" />
                       </div>
                     ) : (
-                      <div className="text-center text-slate-400 text-xs font-bold">Generating QR…</div>
+                      <div className="text-center text-slate-400 text-xs font-bold">QR not available (check console)</div>
                     )}
                   </div>
 
