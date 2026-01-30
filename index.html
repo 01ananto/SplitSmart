@@ -229,11 +229,10 @@
       const handleLogin = async () => {
         if (isLoggingIn) return;
         setIsLoggingIn(true);
-        setErrorMessage(null); // Clear previous errors
+        setErrorMessage(null); 
         try {
           await signInWithPopup(auth, new GoogleAuthProvider());
         } catch (e) {
-          // Ignore cancelled popup error
           if (e.code !== 'auth/cancelled-popup-request' && e.code !== 'auth/popup-closed-by-user') {
             setErrorMessage(e.message);
           }
@@ -261,7 +260,7 @@
         return () => unsub();
       }, []);
 
-      // Groups Listener
+      // Categories (Groups) Listener
       useEffect(() => {
         if (!user?.uid) return;
         const q = query(collection(db, "groups"), where("memberIds", "array-contains", user.uid));
@@ -273,7 +272,7 @@
         return () => unsub();
       }, [user?.uid, activeGroupId]);
 
-      // Active Group Listener
+      // Active Category (Group) Listener
       useEffect(() => {
         if (!activeGroupId) return;
         const unsub = onSnapshot(doc(db, "groups", activeGroupId), (snap) => {
@@ -350,7 +349,28 @@
           });
           setNewGroupName("");
           setActiveGroupId(groupRef.id);
-          notify("Month created");
+          notify("Category created");
+        } catch (e) {
+          setErrorMessage(e.message);
+        }
+      };
+
+      const renameCategory = async (id, newName) => {
+        if (!newName.trim()) return;
+        try {
+          await updateDoc(doc(db, "groups", id), { name: newName.trim() });
+          notify("Renamed");
+        } catch (e) {
+          setErrorMessage(e.message);
+        }
+      };
+
+      const deleteCategory = async (id) => {
+        if (!confirm("Delete this entire category and all its expenses?")) return;
+        try {
+          await deleteDoc(doc(db, "groups", id));
+          if (activeGroupId === id) setActiveGroupId(null);
+          notify("Deleted");
         } catch (e) {
           setErrorMessage(e.message);
         }
@@ -455,12 +475,6 @@
             createdByUserId: user.uid,
             createdAt: serverTimestamp()
           });
-          // Update groups custom labels/categories
-          if (data.category && !activeGroup.categories?.includes(data.category)) {
-            await updateDoc(doc(db, "groups", activeGroupId), {
-              categories: arrayUnion(data.category)
-            });
-          }
           setShowAddExpense(false);
           notify("Saved");
         } catch (e) {
@@ -478,18 +492,6 @@
           setShowEditExpense(false);
           setEditExpense(null);
           notify("Updated");
-        } catch (e) {
-          setErrorMessage(e.message);
-        }
-      };
-
-      const removeCategory = async (cat) => {
-        if (!activeGroupId) return;
-        try {
-          await updateDoc(doc(db, "groups", activeGroupId), {
-            categories: arrayRemove(cat)
-          });
-          notify("Category removed");
         } catch (e) {
           setErrorMessage(e.message);
         }
@@ -524,16 +526,30 @@
               <span className="w-4 h-4">{Icons.key}</span> Join with Code
             </button>
             <div className="flex-1 space-y-4 overflow-y-auto">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Months</h3>
               <div className="space-y-2">
                 {groups.map(g => (
-                  <button key={g.id} onClick={() => setActiveGroupId(g.id)}
-                    className={`w-full text-left p-4 rounded-2xl font-black text-sm transition-all ${activeGroupId === g.id ? 'bg-indigo-600 text-white shadow-md' : 'hover:bg-slate-50 text-slate-600'}`}>
-                    {g.name}
-                  </button>
+                  <div key={g.id} className="group relative">
+                    <button onClick={() => setActiveGroupId(g.id)}
+                      className={`w-full text-left p-4 pr-16 rounded-2xl font-black text-sm transition-all ${activeGroupId === g.id ? 'bg-indigo-600 text-white shadow-md' : 'hover:bg-slate-50 text-slate-600'}`}>
+                      {g.name}
+                    </button>
+                    {activeGroupId === g.id && (
+                      <div className="absolute right-3 top-3.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => {
+                          const n = prompt("Rename Category:", g.name);
+                          if(n) renameCategory(g.id, n);
+                        }} className="p-1 hover:bg-white/20 rounded-md">
+                          <span className="w-3.5 h-3.5 block">{Icons.pencil}</span>
+                        </button>
+                        <button onClick={() => deleteCategory(g.id)} className="p-1 hover:bg-white/20 rounded-md">
+                          <span className="w-3.5 h-3.5 block">{Icons.trash}</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
-              <input className="w-full p-4 bg-slate-50 border-2 border-dashed rounded-2xl text-xs font-bold outline-none" placeholder="+ New Month (Enter)" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} onKeyDown={e => e.key === 'Enter' && createGroup()} />
+              <input className="w-full p-4 bg-slate-50 border-2 border-dashed rounded-2xl text-xs font-bold outline-none" placeholder="Add Category" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} onKeyDown={e => e.key === 'Enter' && createGroup()} />
             </div>
             <div className="mt-8 pt-6 border-t flex items-center gap-4">
               <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center font-black text-indigo-600">{(user.displayName || 'U')[0]}</div>
@@ -551,7 +567,7 @@
 
             {!activeGroup ? (
               <div className="h-full flex flex-col items-center justify-center text-slate-300">
-                <h2 className="text-2xl font-black">Select or Create a Month</h2>
+                <h2 className="text-2xl font-black">Add a Category to start</h2>
               </div>
             ) : (
               <div className="max-w-5xl mx-auto space-y-12">
@@ -563,9 +579,6 @@
                   <div className="flex gap-3 flex-wrap">
                     <button onClick={() => setShowMembersModal(true)} className="bg-white border-2 px-6 py-4 rounded-2xl font-black text-sm flex items-center gap-2 hover:bg-slate-50">
                       <span className="w-4 h-4">{Icons.users}</span> Members
-                    </button>
-                    <button onClick={() => setShowCatModal(true)} className="bg-white border-2 px-6 py-4 rounded-2xl font-black text-sm flex items-center gap-2 hover:bg-slate-50">
-                      Categories
                     </button>
                     <button onClick={async () => { setShowInviteModal(true); await createInvite(); }} className="bg-white border-2 px-6 py-4 rounded-2xl font-black text-sm flex items-center gap-2 hover:bg-slate-50">
                       <span className="w-4 h-4">{Icons.userPlus}</span> Invite
@@ -627,7 +640,6 @@
               title={showAddExpense ? "Add Expense" : "Edit Expense"}
               members={members}
               user={user}
-              categories={activeGroup.categories || []}
               expense={editExpense}
               onClose={() => { setShowAddExpense(false); setShowEditExpense(false); setEditExpense(null); }}
               onSubmit={showAddExpense ? handleAddExpense : handleUpdateExpense}
@@ -636,7 +648,7 @@
           )}
 
           {showMembersModal && (
-            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-[80]">
               <div className="bg-white rounded-[3rem] p-8 max-w-md w-full modal-enter max-h-[80vh] overflow-y-auto shadow-2xl">
                 <h2 className="text-3xl font-black mb-6 tracking-tight">Members</h2>
                 <div className="space-y-3">
@@ -655,26 +667,8 @@
             </div>
           )}
 
-          {showCatModal && (
-            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
-              <div className="bg-white rounded-[3rem] p-8 max-w-md w-full modal-enter max-h-[80vh] overflow-y-auto shadow-2xl">
-                <h2 className="text-3xl font-black mb-6 tracking-tight">Categories</h2>
-                <div className="space-y-2">
-                  {(activeGroup.categories || []).length === 0 ? <p className="text-center text-slate-300 py-8 font-bold">No custom categories yet</p> :
-                    activeGroup.categories.map(cat => (
-                      <div key={cat} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-colors">
-                        <span className="font-bold text-sm">{cat}</span>
-                        <button onClick={() => removeCategory(cat)} className="text-red-400 p-1 hover:text-red-600 transition-colors">{Icons.trash}</button>
-                      </div>
-                    ))}
-                </div>
-                <button onClick={() => setShowCatModal(false)} className="w-full mt-6 py-4 font-black text-slate-400 uppercase text-xs">Close</button>
-              </div>
-            </div>
-          )}
-
           {showInviteModal && (
-            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-50">
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-[80]">
               <div className="bg-white rounded-[3rem] p-10 max-w-lg w-full modal-enter shadow-2xl">
                 <h2 className="text-3xl font-black mb-2 tracking-tight">Invite</h2>
                 <div className="space-y-4 mt-6">
@@ -716,7 +710,7 @@
       return (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 z-[100]">
           <div className="bg-white rounded-[3rem] p-10 max-w-md w-full modal-enter shadow-2xl">
-            <h2 className="text-3xl font-black mb-2 tracking-tight">Join Month</h2>
+            <h2 className="text-3xl font-black mb-2 tracking-tight">Join Category</h2>
             <form onSubmit={onJoin} className="space-y-4 mt-6">
               <input value={input} onChange={(e) => setInput(e.target.value)} className="w-full p-5 bg-slate-50 border-2 rounded-2xl font-black tracking-widest uppercase text-center focus:border-indigo-600 outline-none transition-colors" placeholder="CODE-HERE" />
               <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black shadow-xl hover:bg-indigo-700 transition-colors">Join Now</button>
@@ -727,7 +721,7 @@
       );
     }
 
-    function ExpenseModal({ title, members, user, expense, onClose, onSubmit, onDelete, categories }) {
+    function ExpenseModal({ title, members, user, expense, onClose, onSubmit, onDelete }) {
       const otherMembers = members.filter(m => m.uid !== user.uid);
       const otherName = otherMembers[0]?.displayName || "Other Person";
 
@@ -797,7 +791,8 @@
                   </div>
                 </div>
                 <div>
-                  <input value={cat} onChange={e => setCat(e.target.value)} className="w-full p-5 mt-6 bg-slate-50 border-2 rounded-2xl font-bold focus:border-indigo-600 outline-none transition-colors" placeholder="Add Category" />
+                  <label className="text-[10px] font-black uppercase text-slate-400 ml-4 mb-2 block tracking-widest">Add Category</label>
+                  <input value={cat} onChange={e => setCat(e.target.value)} className="w-full p-5 bg-slate-50 border-2 rounded-2xl font-bold focus:border-indigo-600 outline-none transition-colors" placeholder="Type Category" />
                 </div>
               </div>
 
